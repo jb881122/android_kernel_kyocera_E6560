@@ -150,6 +150,7 @@ struct cyttsp4_core_driver {
 			u8 scan_type);
 	void (*request_detect_finger)(struct cyttsp4_device *ttsp); 
 	void (*request_detect_large)(struct cyttsp4_device *ttsp); 
+	void (*request_loader_finished)(struct cyttsp4_device *ttsp);
 	const u8 *(*get_security_key)(struct cyttsp4_device *ttsp, int *size);
 	void (*get_touch_record)(struct cyttsp4_device *ttsp, int rec_no,
 			int *rec_abs);
@@ -354,6 +355,13 @@ static inline void cyttsp4_request_detect_large(struct cyttsp4_device *ttsp)
 	d->request_detect_large(ttsp);
 }
 
+
+static inline void cyttsp4_request_loader_finished(struct cyttsp4_device *ttsp)
+{
+	struct cyttsp4_core *cd = ttsp->core;
+	struct cyttsp4_core_driver *d = to_cyttsp4_core_driver(cd->dev.driver);
+	d->request_loader_finished(ttsp);
+}
 
 static inline const u8 *cyttsp4_get_security_key(struct cyttsp4_device *ttsp,
 		int *size)

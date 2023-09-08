@@ -1,9 +1,8 @@
 /* 
  * This software is contributed or developed by KYOCERA Corporation.
  * (C) 2012 KYOCERA Corporation
- * (C) 2013 KYOCERA Corporation
  */
-/*=============================================================================*/
+
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/module.h>

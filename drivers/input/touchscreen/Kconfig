@@ -1236,6 +1236,13 @@ config TOUCHSCREEN_CYPRESS_CYTTSP4_DEBUG_MODULE
 	  This module adds support for verbose printing touch
 	  information.
 
+config TOUCHSCREEN_CYPRESS_CYTTSP5_DEVPARAM_UPGRADE
+	bool "FW/CFG upgrade from binary file at devparam"
+	depends on TOUCHSCREEN_CYPRESS_CYTTSP4_LOADER
+	depends on TOUCHSCREEN_CYPRESS_CYTTSP4_BINARY_FW_UPGRADE
+	default y
+
+
 
 source "drivers/input/touchscreen/gt9xx/Kconfig"
 

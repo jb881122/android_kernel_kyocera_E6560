@@ -1,7 +1,10 @@
 /*
  * This software is contributed or developed by KYOCERA Corporation.
+ * (C) 2013 KYOCERA Corporation
  * (C) 2014 KYOCERA Corporation
+ * (C) 2015 KYOCERA Corporation
  */
+
 #ifndef _LINUX_FB_H
 #define _LINUX_FB_H
 

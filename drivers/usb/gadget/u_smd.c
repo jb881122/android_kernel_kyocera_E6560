@@ -19,6 +19,12 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+
+/*
+ * This software is contributed or developed by KYOCERA Corporation.
+ * (C) 2015 KYOCERA Corporation
+ */
+
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/device.h>
@@ -553,6 +559,11 @@ static void gsmd_notify(void *priv, unsigned event)
 	case SMD_EVENT_STATUS:
 		i = smd_tiocmget(port->pi->ch);
 		port->cbits_to_laptop = convert_uart_sigs_to_acm(i);
+
+		if(port->cbits_to_modem) {
+			port->cbits_to_laptop |= SMD_ACM_CTRL_DSR;
+		}
+
 		if (port->port_usb && port->port_usb->send_modem_ctrl_bits)
 			port->port_usb->send_modem_ctrl_bits(port->port_usb,
 						port->cbits_to_laptop);
@@ -640,6 +651,9 @@ static void gsmd_notify_modem(void *gptr, u8 portno, int ctrl_bits)
 		i = smd_tiocmget(port->pi->ch);
 		port->cbits_to_laptop = convert_uart_sigs_to_acm(i);
 
+		if(port->cbits_to_modem) {
+			port->cbits_to_laptop |= SMD_ACM_CTRL_DSR;
+		}
 		if (gser->send_modem_ctrl_bits)
 			gser->send_modem_ctrl_bits(
 					port->port_usb,

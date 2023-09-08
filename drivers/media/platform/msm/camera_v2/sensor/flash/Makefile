@@ -1,6 +1,3 @@
-# This software is contributed or developed by KYOCERA Corporation.
-# (C) 2014 KYOCERA Corporation
-
 ccflags-y += -Idrivers/media/platform/msm/camera_v2
 ccflags-y += -Idrivers/media/platform/msm/camera_v2/sensor/io
 obj-$(CONFIG_MSMB_CAMERA) += msm_led_flash.o

@@ -5,7 +5,7 @@
 #
 
 ccflags-y += -Idrivers/misc/
-
+ccflags-y += -Isecurity/selinux -Isecurity/selinux/include
 
 obj-$(CONFIG_MSM_SSBI) += ssbi.o
 obj-$(CONFIG_USB_BAM) += usb_bam.o
@@ -18,6 +18,7 @@ obj-$(CONFIG_QPNP_CLKDIV) += qpnp-clkdiv.o
 obj-$(CONFIG_QPNP_COINCELL) += qpnp-coincell.o
 obj-$(CONFIG_MSM_AVTIMER) += avtimer.o
 obj-$(CONFIG_SSM) += ssm.o
+obj-$(CONFIG_PFT) += pft.o
 obj-$(CONFIG_QPNP_REVID) += qpnp-revid.o
 
 obj-y += oem_qpnp_diag.o

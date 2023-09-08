@@ -117,3 +117,8 @@ int32_t        kdnand_id_write(
 
     return(rtn);
 }
+
+void kdnand_emmc_refresh(void)
+{
+    dnand_fs_refresh();
+}

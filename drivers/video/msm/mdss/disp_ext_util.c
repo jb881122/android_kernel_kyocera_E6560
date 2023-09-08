@@ -1,8 +1,12 @@
 /*
  * This software is contributed or developed by KYOCERA Corporation.
+ * (C) 2012 KYOCERA Corporation
+ * (C) 2013 KYOCERA Corporation
  * (C) 2014 KYOCERA Corporation
- */
-/*
+ * (C) 2015 KYOCERA Corporation
+ *
+ * drivers/video/msm/mdss/disp_ext_util.c
+ *
  * Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -19,205 +23,213 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA.
  *
- */
+*/
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/kernel.h>
 #include <linux/msm_mdp.h>
+#include <linux/delay.h>
 #include "disp_ext.h"
 #include "mdss_dsi.h"
 
-static struct local_disp_state_type local_state;
+static int fb_dm_flag = 0;
 
-#ifdef CONFIG_DISP_EXT_UTIL_VSYNC
-#define DISP_EXT_UTIL_TOTAL_LINE  1651
-#define DISP_EXT_UTIL_VSYNC_COUNT  290
-#define DISP_EXT_UTIL_VSYNC_OFFSET  364
-uint32 disp_ext_util_get_total_line( void )
+void disp_ext_set_dmflag(int dmflag)
 {
-	uint32 total_line;
-	total_line = DISP_EXT_UTIL_TOTAL_LINE -1;
-    DISP_LOCAL_LOG_EMERG("DISP: %s - total line[%d]\n",__func__,total_line);
-
-	return total_line;
-}
-uint32 disp_ext_util_get_vsync_count( void )
-{
-	uint32 cnt;
-	cnt = DISP_EXT_UTIL_VSYNC_COUNT;
-    DISP_LOCAL_LOG_EMERG("DISP: %s - Vsync count[%d]\n",__func__,cnt);
-
-	return cnt;
-}
-uint32 disp_ext_util_vsync_cal_start( uint32 start_y )
-{
-	uint32 cal_start_y;
-	cal_start_y = start_y + DISP_EXT_UTIL_VSYNC_OFFSET;
-    DISP_LOCAL_LOG_EMERG("DISP: %s - Calibration start_y[%d]\n",__func__,cal_start_y);
-
-	return cal_start_y;
-}
-#endif
-
-#ifdef CONFIG_DISP_EXT_UTIL_GET_RATE
-#define DISP_EXT_UTIL_REFRESH_RATE  57
-uint32 disp_ext_util_get_refresh_rate( void )
-{
-	uint32 rate;
-	rate = DISP_EXT_UTIL_REFRESH_RATE;
-    DISP_LOCAL_LOG_EMERG("DISP: %s - Refresh Rate[%d]\n",__func__,rate);
-
-	return rate;
-}
-#endif
-
-#ifdef CONFIG_DISP_UTIL_DSI_CLK_OFF
-void disp_ext_util_dsi_clk_off( void )
-{
-	DISP_LOCAL_LOG_EMERG("%s start\n",__func__);
-
-	local_bh_disable();
-	mipi_dsi_clk_disable();
-	local_bh_enable();
-
-	MIPI_OUTP(MIPI_DSI_BASE + 0x0000, 0);
-
-	mipi_dsi_phy_ctrl(0);
-
-	local_bh_disable();
-	mipi_dsi_ahb_ctrl(0);
-	local_bh_enable();
-
-	DISP_LOCAL_LOG_EMERG("%s end\n",__func__);
-
-	return;
-}
-#endif
-
-local_disp_state_enum disp_ext_util_get_disp_state(void)
-{
-    return local_state.disp_state;
+	fb_dm_flag = dmflag;
 }
 
-void disp_ext_util_set_disp_state(local_disp_state_enum state)
+int disp_ext_is_invalid()
 {
-    if( state > LOCAL_DISPLAY_TERM ) {
-        return;
-    }
-    local_state.disp_state = state;
-}
-
-struct local_disp_state_type *disp_ext_util_get_disp_info(void)
-{
-    return &local_state;
-}
-
-struct semaphore disp_local_mutex;
-void disp_ext_util_disp_local_init( void )
-{
-    sema_init(&disp_local_mutex,1);
-    memset((void *)&local_state, 0, sizeof(struct local_disp_state_type));
-}
-
-void disp_ext_util_disp_local_lock( void )
-{
-    down(&disp_local_mutex);
-}
-
-void disp_ext_util_disp_local_unlock( void )
-{
-    up(&disp_local_mutex);
-}
-
-DEFINE_SEMAPHORE(disp_ext_util_mipitx_sem);
-void disp_ext_util_mipitx_lock( void )
-{
-    down(&disp_ext_util_mipitx_sem);
-}
-
-void disp_ext_util_mipitx_unlock( void )
-{
-    up(&disp_ext_util_mipitx_sem);
-}
-
-#ifdef CONFIG_DISP_EXT_DIAG
-uint32_t disp_ext_util_get_crc_error(void)
-{
-    return local_state.crc_error_count;
-}
-
-void disp_ext_util_set_crc_error(uint32_t count)
-{
-    local_state.crc_error_count = count;
-}
-
-void disp_ext_util_crc_countup(void)
-{
-    local_state.crc_error_count++;
-}
-#endif
-
-#ifdef CONFIG_DISP_EXT_PROPERTY
-static void update_dsi_cmd(struct dsi_panel_cmds *cmds, char cmd_addr, uint8_t *data, int len)
-{
-	int i;
-
-	for (i = 0; i < cmds->cmd_cnt; i++) {
-		if (cmds->cmds[i].payload[0] == cmd_addr) {
-			if (cmds->cmds[i].dchdr.dlen == 1 + len) {
-				DISP_LOCAL_LOG_EMERG("%s: %02x found at %d\n", __func__, cmd_addr, i);
-				memcpy(&cmds->cmds[i].payload[1], data, len);
-			}
-		}
+	if (fb_dm_flag != 0 && strcmp(current->comm, "kdispdiag") != 0) {
+		return 1;
+	} else {
+		return 0;
 	}
 }
 
-void disp_ext_util_set_kcjprop(struct mdss_panel_data *pdata, struct fb_kcjprop_data* kcjprop_data)
+#ifdef CONFIG_DISP_EXT_PROPERTY
+void disp_ext_util_set_kcjprop(struct mdss_panel_data *pdata
+                                       , struct fb_kcjprop_data* kcjprop_data)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
 
 	DISP_LOCAL_LOG_EMERG("DISP disp_ext_util_set_kcjprop S\n");
-	disp_ext_util_disp_local_lock();
 
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata, panel_data);
 
-	if (kcjprop_data->rw_display_cabc_valid == 0) {
-		update_dsi_cmd(&ctrl->on2_cmds, 0x55, &kcjprop_data->rw_display_cabc, 1);
-		DISP_LOCAL_LOG_EMERG("%s:cabc ext set\n", __func__);
-	}
-
 	if (kcjprop_data->rw_display_gamma_valid == 0) {
-		update_dsi_cmd(&ctrl->on2_cmds, 0xc7,
-			kcjprop_data->rw_display_gamma_r, MSMFB_GAMMA_KCJPROP_DATA_NUM);
-		update_dsi_cmd(&ctrl->on2_cmds, 0xc8,
-			kcjprop_data->rw_display_gamma_g, MSMFB_GAMMA_KCJPROP_DATA_NUM);
-		update_dsi_cmd(&ctrl->on2_cmds, 0xc9,
-			kcjprop_data->rw_display_gamma_b, MSMFB_GAMMA_KCJPROP_DATA_NUM);
 		DISP_LOCAL_LOG_EMERG("%s:gamma ext set\n", __func__);
 	}
 
-#ifdef CONFIG_DISP_EXT_REFRESH
-    if( kcjprop_data->rw_display_reflesh_valid == 0) {
-        if(kcjprop_data->rw_display_reflesh != 0) {
-            disp_ext_reflesh_set_enable(0);
-            disp_ext_reflesh_set_start(0);
-            DISP_LOCAL_LOG_EMERG("%s:display_reflesh_enable=%d\n", __func__,disp_ext_reflesh_get_enable());
-        }
-        else {
-            disp_ext_reflesh_start();
-        }
-    }
+	if (kcjprop_data->rw_display_cabc_valid == 0) {
+		DISP_LOCAL_LOG_EMERG("%s:cabc ext set\n", __func__);
+	}
+
+#ifdef CONFIG_DISP_EXT_DIAG
+	if (kcjprop_data->rw_display_mipi_err_valid == 0) {
+		if (kcjprop_data->rw_display_mipi_err == 1){
+			disp_ext_diag_set_mipi_err_chk(1);
+			DISP_LOCAL_LOG_EMERG("%s:mipi_err_chk_flg ON\n", __func__);
+		} else if (kcjprop_data->rw_display_mipi_err == 0){
+			disp_ext_diag_set_mipi_err_chk(0);
+			DISP_LOCAL_LOG_EMERG("%s:mipi_err_chk_flg OFF\n", __func__);
+		} else {
+			DISP_LOCAL_LOG_EMERG("%s:rw_display_mipi_err invalid value \n", __func__);
+		}
+	}
 #endif
 
-	disp_ext_util_disp_local_unlock();
 	DISP_LOCAL_LOG_EMERG("DISP disp_ext_util_set_kcjprop E\n");
 }
 #endif
 
+static char cmd_data[2] = {0x00, 0x00};
+static struct dsi_cmd_desc panel_cmds = {
+	{DTYPE_DCS_WRITE1, 1, 0, 0, 1, sizeof(cmd_data)}, cmd_data
+};
+
+void disp_ext_panel_cmd_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int cmd, int para)
+{
+	struct dcs_cmd_req cmdreq;
+
+	pr_debug("%s: cmd[%x]para=[%x]\n", __func__, cmd, para);
+
+	cmd_data[0] = (unsigned char)cmd;
+	cmd_data[1] = (unsigned char)para;
+
+	memset(&cmdreq, 0, sizeof(cmdreq));
+	cmdreq.cmds = &panel_cmds;
+	cmdreq.cmds_cnt = 1;
+	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
+	cmdreq.rlen = 0;
+	cmdreq.cb = NULL;
+
+	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
+}
+
+
+extern u32 mdss_dsi_panel_cmd_read(struct mdss_dsi_ctrl_pdata *ctrl, char cmd0,
+		char cmd1, void (*fxn)(int), char *rbuf, int len);
+
+static char otp_read_cmd[] = {0xF8, 0x00, 0x00, 0x00};	/* DTYPE_DCS_LWRITE */
+static struct dsi_cmd_desc dcs_otp_read_cmd = {
+	{DTYPE_DCS_LWRITE, 1, 0, 0, 5, sizeof(otp_read_cmd)}, otp_read_cmd
+};
+
+void disp_ext_panel_otp_read_dcs(struct mdss_dsi_ctrl_pdata *ctrl, unsigned char data1, unsigned char data2, unsigned char data3)
+{
+	struct dcs_cmd_req cmdreq;
+
+	otp_read_cmd[1] = data1;
+	otp_read_cmd[2] = data2;
+	otp_read_cmd[3] = data3;
+
+	memset(&cmdreq, 0, sizeof(cmdreq));
+	cmdreq.cmds = &dcs_otp_read_cmd;
+	cmdreq.cmds_cnt = 1;
+	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
+	cmdreq.rlen = 0;
+	cmdreq.cb = NULL;
+
+	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
+}
+
+void disp_ext_panel_cmd_read(struct mdss_dsi_ctrl_pdata *ctrl_pdata, char cmd0, char *rbuf)
+{
+	int flag = MIPI_INP((ctrl_pdata->ctrl_base) + 0x3C);
+	flag = flag & BIT(26);
+	mdss_dsi_set_tx_power_mode(0, &ctrl_pdata->panel_data);
+	mdss_dsi_panel_cmd_read(ctrl_pdata, 0xFA, 0x00, NULL, rbuf, 1);
+	if(flag){
+		mdss_dsi_set_tx_power_mode(1, &ctrl_pdata->panel_data);
+	}
+}
+
+int disp_ext_panel_otp_check_core( struct mdss_dsi_ctrl_pdata *ctrl_pdata )
+{
+	char   read1,read2,read3,read4;
+	int    ret = 0;
+	char   rbuf[4] = {0};
+
+	msleep(10);
+	disp_ext_panel_otp_read_dcs(ctrl_pdata, 0x00, 0x00, 0x00);
+	msleep(10);
+	disp_ext_panel_otp_read_dcs(ctrl_pdata, 0x08, 0x00, 0x00);
+	msleep(10);
+	disp_ext_panel_otp_read_dcs(ctrl_pdata, 0x00, 0x00, 0x00);
+	msleep(50);
+	disp_ext_panel_cmd_read(ctrl_pdata, 0xFA, rbuf);
+	read1 = rbuf[0];
+	if(rbuf[0] != 0xFF){
+		ret = 1;
+	}
+	msleep(120);
+	disp_ext_panel_otp_read_dcs(ctrl_pdata, 0x00, 0x08, 0x00);
+	msleep(10);
+	disp_ext_panel_otp_read_dcs(ctrl_pdata, 0x08, 0x08, 0x00);
+	msleep(10);
+	disp_ext_panel_otp_read_dcs(ctrl_pdata, 0x00, 0x08, 0x00);
+	msleep(50);
+	disp_ext_panel_cmd_read(ctrl_pdata, 0xFA, rbuf);
+	read2 = rbuf[0];
+	if(rbuf[0] != 0xFF){
+		ret = 1;
+	}
+	msleep(120);
+	disp_ext_panel_otp_read_dcs(ctrl_pdata, 0x00, 0x10, 0x00);
+	msleep(10);
+	disp_ext_panel_otp_read_dcs(ctrl_pdata, 0x08, 0x10, 0x00);
+	msleep(10);
+	disp_ext_panel_otp_read_dcs(ctrl_pdata, 0x00, 0x10, 0x00);
+	msleep(50);
+	disp_ext_panel_cmd_read(ctrl_pdata, 0xFA, rbuf);
+	read3 = rbuf[0];
+	if(rbuf[0] != 0xFF){
+		ret = 1;
+	}
+	msleep(120);
+	disp_ext_panel_otp_read_dcs(ctrl_pdata, 0x00, 0x18, 0x00);
+	msleep(10);
+	disp_ext_panel_otp_read_dcs(ctrl_pdata, 0x08, 0x18, 0x00);
+	msleep(10);
+	disp_ext_panel_otp_read_dcs(ctrl_pdata, 0x00, 0x18, 0x00);
+	msleep(50);
+	disp_ext_panel_cmd_read(ctrl_pdata, 0xFA, rbuf);
+	read4 = rbuf[0];
+	if(rbuf[0] != 0xFF){
+		ret = 1;
+	}
+	pr_info("%s:FAh[%x][%x][%x][%x]ret[%d] \n", __func__, read1,read2,read3,read4, ret);
+	return(ret);
+}
+
+static bool otp_check_done = false;
+static int otp_check = 0;
+
+int disp_ext_otp_check(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+
+	otp_check = disp_ext_panel_otp_check_core(ctrl);
+
+	otp_check_done = true;
+
+	return otp_check;
+}
+
+int disp_ext_otp_check_value(void)
+{
+	if (!otp_check_done)
+		return -1;
+
+	return otp_check;
+}
+
+#ifdef CONFIG_DISP_EXT_KSPLASH
 #define MAIN_LCD_START_X                        0                                
 #define MAIN_LCD_START_Y                        0                                
 #define MAIN_LCD_WIDTH                          720                              
-#define MAIN_LCD_HIGHT                          1280                             
+#define MAIN_LCD_HIGHT                          1280                              
 #define MAIN_LCD_END_X                          (MAIN_LCD_START_X+MAIN_LCD_WIDTH)
 #define MAIN_LCD_END_Y                          (MAIN_LCD_START_Y+MAIN_LCD_HIGHT)
 
@@ -298,8 +310,8 @@ void  kernel_disp_raw_bitmap_SR(int x,
     short dotParchar;
 
     dotParchar = imageData[SR_BYTE_PER_DOT_POS];
-    width  = (unsigned int)imageData[SR_IMAGE_WIDTH_POS]  + (unsigned int)imageData[SR_IMAGE_WIDTH_POS  + 1] * 256;  // 幅
-    height = (unsigned int)imageData[SR_IMAGE_HEIGHT_POS] + (unsigned int)imageData[SR_IMAGE_HEIGHT_POS + 1] * 256;  // 高さ
+    width  = (unsigned int)imageData[SR_IMAGE_WIDTH_POS]  + (unsigned int)imageData[SR_IMAGE_WIDTH_POS  + 1] * 256;
+    height = (unsigned int)imageData[SR_IMAGE_HEIGHT_POS] + (unsigned int)imageData[SR_IMAGE_HEIGHT_POS + 1] * 256;
 
     image_ix  = SR_HEADER_SIZE;
     xsta = BOOT_XSTA_LIMIT(x,left);
@@ -359,6 +371,90 @@ void  kernel_disp_raw_bitmap_SR(int x,
     }
   }
 }
-/******************************************************************************************************/
-/******************************************************************************************************/
+#endif
+static int panel_type = PANEL_TYPE_T;
+
+int disp_ext_panel_detect_type(int gpio)
+{
+	int rc, ret;
+
+	ret = PANEL_TYPE_ERROR;
+
+	if (!gpio_is_valid(gpio)) {
+		pr_err("%s:%d, Disp_det gpio not specified\n",__func__, __LINE__);
+	} else {
+		rc = gpio_request(gpio, "disp_det");
+
+		if (rc) {
+			pr_err("request DET gpio failed, rc=%d\n", rc);
+			gpio_free(gpio);
+			return ret;
+		}
+
+		rc = gpio_tlmm_config(GPIO_CFG(
+				gpio, 0,
+				GPIO_CFG_INPUT,
+				GPIO_CFG_PULL_UP,
+				GPIO_CFG_2MA),
+				GPIO_CFG_ENABLE);
+
+		if (rc) {
+			pr_err("%s: unable to config tlmm = %d\n", __func__, gpio);
+			gpio_free(gpio);
+			return ret;
+		}
+
+		rc = gpio_direction_input(gpio);
+
+		if (rc) {
+			pr_err("set_direction for disp_en gpio failed, rc=%d\n", rc);
+			gpio_free(gpio);
+			return ret;
+		}
+
+		rc = gpio_get_value(gpio);
+
+		if (!rc) {
+			ret = PANEL_TYPE_G;
+
+			gpio_tlmm_config(GPIO_CFG(
+					gpio, 0,
+					GPIO_CFG_INPUT,
+					GPIO_CFG_NO_PULL,
+					GPIO_CFG_2MA),
+					GPIO_CFG_ENABLE);
+		} else {
+			ret = PANEL_TYPE_T;
+
+			gpio_tlmm_config(GPIO_CFG(
+					gpio, 0,
+					GPIO_CFG_OUTPUT,
+					GPIO_CFG_NO_PULL,
+					GPIO_CFG_2MA),
+					GPIO_CFG_ENABLE);
+
+			gpio_set_value(gpio, 0);
+		}
+	}
+
+	return ret;
+}
+
+int disp_ext_panel_get_type(void)
+{
+	return panel_type;
+}
+
+void disp_ext_panel_set_type(int type)
+{
+	if (type == PANEL_TYPE_G) {
+		pr_info("%s: panel type -> G", __func__);
+	} else if (type == PANEL_TYPE_T) {
+		pr_info("%s: panel type -> T", __func__);
+	} else {
+		pr_info("%s: panel type -> ?", __func__);
+	}
+	panel_type = type;
+}
+
 

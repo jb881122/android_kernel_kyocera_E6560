@@ -9,10 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-/*
- * This software is contributed or developed by KYOCERA Corporation.
- * (C) 2014 KYOCERA Corporation
- */
 
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -556,7 +552,13 @@ static int get_impedance_index(u32 imped)
 				__func__);
 		goto ret;
 	}
-	for (i = 0; i < ARRAY_SIZE(imped_index); i++) {
+	if (imped >= imped_index[ARRAY_SIZE(imped_index) - 1].imped_val) {
+		pr_debug("%s, detected impedance is greater than 32164 Ohm\n",
+				__func__);
+		i = ARRAY_SIZE(imped_index) - 1;
+		goto ret;
+	}
+	for (i = 0; i < ARRAY_SIZE(imped_index) - 1; i++) {
 		if (imped >= imped_index[i].imped_val &&
 			imped < imped_index[i + 1].imped_val)
 			break;
@@ -573,7 +575,7 @@ void wcd9xxx_clsh_imped_config(struct snd_soc_codec *codec,
 	int i  = 0;
 	int index = 0;
 	index = get_impedance_index(imped);
-	if (index > ARRAY_SIZE(imped_index)) {
+	if (index >= ARRAY_SIZE(imped_index)) {
 		pr_err("%s, invalid imped = %d\n", __func__, imped);
 		return;
 	}
@@ -664,6 +666,7 @@ static void wcd9xxx_dynamic_bypass_buck_ctrl_lo(struct snd_soc_codec *cdc,
 		{WCD9XXX_A_BUCK_MODE_5, enable ? 0xFF : 0x02, 0x02},
 		{WCD9XXX_A_BUCK_MODE_5, 0x1, 0x01}
 	};
+
 	if (!enable) {
 		snd_soc_update_bits(cdc, WCD9XXX_A_BUCK_MODE_1,
 					(0x1 << 3), 0x00);
@@ -951,7 +954,6 @@ static void wcd9xxx_clsh_state_hph_lo(struct snd_soc_codec *codec,
 		if ((clsh_d->state == WCD9XXX_CLSH_STATE_LO) ||
 			(req_state == WCD9XXX_CLSH_STATE_LO)) {
 			wcd9xxx_dynamic_bypass_buck_ctrl_lo(codec, false);
-			wcd9xxx_enable_buck(codec, clsh_d, true);
 			wcd9xxx_set_fclk_get_ncp(codec, clsh_d,
 						NCP_FCLK_LEVEL_8);
 			if (req_state & WCD9XXX_CLSH_STATE_HPH_ST) {

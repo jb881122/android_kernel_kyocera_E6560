@@ -1,8 +1,7 @@
 /*
  * This software is contributed or developed by KYOCERA Corporation.
- * (C) 2014 KYOCERA Corporation
+ * (C) 2016 KYOCERA Corporation
  */
-
 #ifndef _GPIO_KEYS_H
 #define _GPIO_KEYS_H
 

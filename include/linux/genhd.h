@@ -135,7 +135,6 @@ struct hd_struct {
 #define GENHD_FL_BLOCK_EVENTS_ON_EXCL_WRITE	256
 #define GENHD_FL_NO_PART_SCAN			512
 #define GENHD_IF_USB	1
-
 enum {
 	DISK_EVENT_MEDIA_CHANGE			= 1 << 0, /* media changed */
 	DISK_EVENT_EJECT_REQUEST		= 1 << 1, /* eject requested */
@@ -241,6 +240,7 @@ static inline bool disk_partitionable(struct gendisk *disk)
 {
 	return disk_max_parts(disk) > 1;
 }
+
 
 static inline bool disk_part_scan_enabled(struct gendisk *disk)
 {

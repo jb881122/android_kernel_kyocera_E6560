@@ -1,6 +1,6 @@
 /*
  * This software is contributed or developed by KYOCERA Corporation.
- * (C) 2014 KYOCERA Corporation
+ * (C) 2016 KYOCERA Corporation
  */
 #include <linux/kernel.h>
 #include <linux/module.h>

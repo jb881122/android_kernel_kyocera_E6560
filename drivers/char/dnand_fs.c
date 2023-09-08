@@ -872,3 +872,16 @@ int32_t        dnand_fs_write(
     }
     return(rtn);
 }
+
+void dnand_fs_refresh(void)
+{
+    int32_t      rtn;
+
+    rtn    = pre_init();
+    if( rtn != DNAND_NO_ERROR )
+    {
+        return;
+    }
+
+    dnand_drv_refresh();
+}

@@ -815,9 +815,18 @@ static void get_crash_time(unsigned char *buf, unsigned int bufsize)
 	ts_now = current_kernel_time();
 	rtc_time_to_tm(ts_now.tv_sec, &tm);
 
-	sprintf( buf, "%d-%02d-%02d %02d:%02d:%02d.%09lu UTC\n",
+	sprintf( buf, "%d-%02d-%02d %02d:%02d:%02d.%09lu UTC",
 	            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 	            tm.tm_hour, tm.tm_min, tm.tm_sec, ts_now.tv_nsec);
+}
+
+void set_kcj_pet_time(void){
+	ram_log_info_type *pPanicInfo;
+
+	pPanicInfo = (ram_log_info_type*)ADDR_CONTROL_INFO;
+	get_crash_time( &pPanicInfo->crash_time[0], CRASH_TIME_SIZE );
+	strncat( &pPanicInfo->crash_time[0], " (LAST PET)", CRASH_TIME_SIZE-1);
+	mb();
 }
 
 static unsigned char check_smem_crash_system( ram_log_info_type *plog_info )
@@ -846,12 +855,15 @@ static void set_smem_crash_system(const char *system)
 	if ((plog_info == NULL) || (system == NULL)) {
 		return;
 	}
+
+	/* Set crash time to smem */
+	memset( &plog_info->crash_time[0], '\0', CRASH_TIME_SIZE );
+	get_crash_time( &plog_info->crash_time[0], CRASH_TIME_SIZE );
+
 	if (check_smem_crash_system(plog_info) == 1) {
 		return;
 	}
 	memcpy( &plog_info->crash_system[0], system, strlen(system) );
-
-	get_crash_time( &plog_info->crash_time[0], CRASH_TIME_SIZE );
 
 	mb();
 }
@@ -953,6 +965,34 @@ void set_smem_crash_kind_android(void)
 static void set_smem_crash_kind_unknown(void)
 {
 	set_smem_crash_kind(CRASH_KIND_UNKNOWN);
+}
+
+/*
+ * set_kcj_fixed_info_modem()
+ *
+ * Note: Set kcj modem fixed info to uninit ram.
+ */
+void set_kcj_fixed_info_modem(void)
+{
+        ram_log_info_type *pPanicInfo;
+        ram_log_info_type *pSmemLogInfo;
+
+        mb();
+        pPanicInfo   = (ram_log_info_type *)ADDR_CONTROL_INFO;
+        pSmemLogInfo = (ram_log_info_type *)kc_smem_alloc(SMEM_CRASH_LOG, SIZE_SMEM_ALLOC);
+
+        if ( (pPanicInfo == NULL) || (pSmemLogInfo == NULL) ) {
+                return;
+        }
+
+        /* set modem info on smem to uninit ram */
+        memcpy( &pPanicInfo->product_number[0], &pSmemLogInfo->product_number[0], PRODUCT_NUMBER_SIZE );
+        memcpy( &pPanicInfo->baseband_version[0], &pSmemLogInfo->baseband_version[0], VERSION_SIZE );
+        memcpy( &pPanicInfo->modem_build_date[0], &pSmemLogInfo->modem_build_date[0], BUILD_DATE_SIZE );
+
+	/* set LinuxBanner to uninit ram */
+	memcpy( &pPanicInfo->linux_banner[0], &pSmemLogInfo->linux_banner[0], LINUX_BANNER_SIZE );
+        mb();
 }
 
 void set_kcj_crash_info(void)

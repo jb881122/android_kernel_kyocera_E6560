@@ -27,5 +27,6 @@
 
 int32_t dnand_fs_read( uint32_t cid, uint32_t offset, uint8_t *pbuf, uint32_t size );
 int32_t dnand_fs_write( uint32_t cid, uint32_t offset, uint8_t *pbuf, uint32_t size );
+void dnand_fs_refresh(void);
 
 #endif // DNAND_FS_H

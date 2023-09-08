@@ -13,9 +13,7 @@
 /*
  * This software is contributed or developed by KYOCERA Corporation.
  * (C)2013 KYOCERA Corporation
- * (C)2014 KYOCERA Corporation
  */
-/*=============================================================================*/
 
 #include "msm_sensor.h"
 
@@ -153,6 +151,35 @@ static struct msm_camera_i2c_reg_conf t4k28_720p_settings[] = {
 };
 
 static struct msm_camera_i2c_reg_conf t4k28_fullsize_settings[] = {
+    {0x3012, 0x03},
+    {0x3015, 0x05},
+    {0x3016, 0x16},
+    {0x3017, 0x03},
+    {0x3018, 0x00},
+    {0x3019, 0x00},
+    {0x301A, 0x10},
+    {0x301B, 0x00},
+    {0x301C, 0x01},
+    {0x3020, 0x06},
+    {0x3021, 0x40},
+    {0x3022, 0x04},
+    {0x3023, 0xB0},
+    {0x334D, 0x50},
+    {0x334E, 0x00},
+    {0x334F, 0xA0},
+    {0x3047, 0x64},
+    {0x3048, 0x01},
+    {0x3049, 0x01},
+    {0x304A, 0x0A},
+    {0x304B, 0x0A},
+    {0x3089, 0x02},
+    {0x308A, 0x58},
+    {0x351C, 0x6C},
+    {0x351D, 0x78},
+    {0x3012, 0x02},
+};
+
+static struct msm_camera_i2c_reg_conf t4k28_zsl_settings[] = {
     {0x3012, 0x03},
     {0x3015, 0x05},
     {0x3016, 0x16},
@@ -600,7 +627,7 @@ static struct msm_camera_i2c_reg_conf t4k28_recommend_settings[] = {
     {0x3518, 0x00},
     {0x3519, 0xFF},
     {0x351A, 0xC0},
-    {0x351B, 0xA8},
+    {0x351B, 0xC8},
     {0x351C, 0x6C},
     {0x351D, 0x78},
     {0x351E, 0x96},
@@ -879,7 +906,6 @@ static struct msm_camera_i2c_reg_conf t4k28_weight_spot_settings[] = {
     {0x350F, 0x00},
     {0x3510, 0x00},
 };
-
 #ifdef FEATURE_KYOCERA_MCAM_BB_ADJ
 #define ADJ_LOG_SWITCH
 #ifdef ADJ_LOG_SWITCH
@@ -944,7 +970,7 @@ static void t4k28_main_read_adjust_file( void );
 #endif
 
 static struct msm_camera_i2c_reg_conf t4k28_framerate_720p_auto_settings[] = {
-    {0x351B, 0xA8},
+    {0x351B, 0xC8},
 };
 
 static struct msm_camera_i2c_reg_conf t4k28_framerate_720p_fix30_settings[] = {
@@ -956,7 +982,7 @@ static struct msm_camera_i2c_reg_conf t4k28_framerate_720p_fix15_settings[] = {
 };
 
 static struct msm_camera_i2c_reg_conf t4k28_framerate_auto_settings[] = {
-    {0x351B, 0xA8},
+    {0x351B, 0xC8},
 };
 
 static struct msm_camera_i2c_reg_conf t4k28_framerate_fix30_settings[] = {
@@ -985,8 +1011,8 @@ static struct msm_camera_i2c_conf_array t4k28_confs[] = {
   {&t4k28_fullsize_settings[0], ARRAY_SIZE(t4k28_fullsize_settings), 0, MSM_CAMERA_I2C_BYTE_DATA},
   {&t4k28_720p_settings[0], ARRAY_SIZE(t4k28_720p_settings), 0, MSM_CAMERA_I2C_BYTE_DATA},
   {&t4k28_preview_settings[0], ARRAY_SIZE(t4k28_preview_settings), 0, MSM_CAMERA_I2C_BYTE_DATA},
+  {&t4k28_zsl_settings[0], ARRAY_SIZE(t4k28_zsl_settings), 0, MSM_CAMERA_I2C_BYTE_DATA},
 };
-
 
 static int32_t msm_t4k28_i2c_probe(struct i2c_client *client,
     const struct i2c_device_id *id)
@@ -1550,6 +1576,7 @@ static long t4k28_set_framerate_mode(struct msm_sensor_ctrl_t *s_ctrl, int32_t m
         }
     break;
     case 2:
+    case 3:
     case MSM_SENSOR_RES_FULL:
         switch (mode) {
         case MSM_CAMERA_FRAMERATE_MODE_AUTO:
@@ -1601,6 +1628,10 @@ int32_t t4k28_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
         for (i = 0; i < SUB_MODULE_MAX; i++)
             cdata->cfg.sensor_info.subdev_id[i] =
                 s_ctrl->sensordata->sensor_info->subdev_id[i];
+		cdata->cfg.sensor_info.is_mount_angle_valid =
+			s_ctrl->sensordata->sensor_info->is_mount_angle_valid;
+		cdata->cfg.sensor_info.sensor_mount_angle =
+			s_ctrl->sensordata->sensor_info->sensor_mount_angle;
         CDBG("%s:%d sensor name %s\n", __func__, __LINE__,
             cdata->cfg.sensor_info.sensor_name);
         CDBG("%s:%d session id %d\n", __func__, __LINE__,
@@ -1608,6 +1639,9 @@ int32_t t4k28_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
         for (i = 0; i < SUB_MODULE_MAX; i++)
             CDBG("%s:%d subdev_id[%d] %d\n", __func__, __LINE__, i,
                 cdata->cfg.sensor_info.subdev_id[i]);
+		CDBG("%s:%d mount angle valid %d value %d\n", __func__,
+			__LINE__, cdata->cfg.sensor_info.is_mount_angle_valid,
+			cdata->cfg.sensor_info.sensor_mount_angle);
 
         break;
     case CFG_SET_INIT_SETTING:
@@ -1635,6 +1669,7 @@ int32_t t4k28_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
         res_mode = MSM_SENSOR_INVALID_RES;
 }
         fps_mode = MSM_CAMERA_FRAMERATE_MODE_AUTO;
+
         break;
     case CFG_SET_RESOLUTION:
         res = *(enum msm_sensor_resolution_t *)cdata->cfg.setting;
@@ -1652,13 +1687,13 @@ int32_t t4k28_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
         CDBG("###TEST### SET RES=%d", res );
         res_mode = res;
 }
-
         CDBG("resetting fps mode=%d", fps_mode );
         t4k28_set_framerate_mode(s_ctrl, fps_mode);
+
         break;
     case CFG_SET_STOP_STREAM:
 {
-        if ( res_mode == MSM_SENSOR_RES_2 && !wb_read ) {
+        if ( (res_mode == MSM_SENSOR_RES_2 && !wb_read) || (res_mode == MSM_SENSOR_RES_3 && !wb_read) ) {
             int i = 0;
 {
             uint16_t read_data = 0;
@@ -1720,7 +1755,7 @@ int32_t t4k28_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
             ARRAY_SIZE(t4k28_start_settings),
             MSM_CAMERA_I2C_BYTE_DATA);
 {
-        if ( res_mode == MSM_SENSOR_RES_QTR || res_mode == MSM_SENSOR_RES_2 )
+        if ( res_mode == MSM_SENSOR_RES_QTR || res_mode == MSM_SENSOR_RES_2 || res_mode == MSM_SENSOR_RES_3)
         {
             uint16_t read_data = 0;
             uint16_t write_data = 0;
@@ -1777,7 +1812,7 @@ int32_t t4k28_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
                     MSM_CAMERA_I2C_BYTE_DATA);
             }
 }
-            if ( res_mode == MSM_SENSOR_RES_2 ) {
+            if ( res_mode == MSM_SENSOR_RES_2 || res_mode == MSM_SENSOR_RES_3) {
 {
                 uint16_t read_data = 0;
                 uint16_t write_data = 0;
@@ -1805,17 +1840,22 @@ int32_t t4k28_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
 }
         break;
     case CFG_GET_SENSOR_INIT_PARAMS:
-        cdata->cfg.sensor_init_params =
-            *s_ctrl->sensordata->sensor_init_params;
-        CDBG("%s:%d init params mode %d pos %d mount %d\n", __func__,
-            __LINE__,
-            cdata->cfg.sensor_init_params.modes_supported,
-            cdata->cfg.sensor_init_params.position,
-            cdata->cfg.sensor_init_params.sensor_mount_angle);
+		cdata->cfg.sensor_init_params.modes_supported =
+			s_ctrl->sensordata->sensor_info->modes_supported;
+		cdata->cfg.sensor_init_params.position =
+			s_ctrl->sensordata->sensor_info->position;
+		cdata->cfg.sensor_init_params.sensor_mount_angle =
+			s_ctrl->sensordata->sensor_info->sensor_mount_angle;
+		CDBG("%s:%d init params mode %d pos %d mount %d\n", __func__,
+			__LINE__,
+			cdata->cfg.sensor_init_params.modes_supported,
+			cdata->cfg.sensor_init_params.position,
+			cdata->cfg.sensor_init_params.sensor_mount_angle);
         break;
     case CFG_SET_SLAVE_INFO: {
         struct msm_camera_sensor_slave_info sensor_slave_info;
-        struct msm_sensor_power_setting_array *power_setting_array;
+		struct msm_camera_power_ctrl_t *p_ctrl;
+		uint16_t size;
         int slave_index = 0;
         if (copy_from_user(&sensor_slave_info,
             (void *)cdata->cfg.setting,
@@ -1828,27 +1868,30 @@ int32_t t4k28_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
         s_ctrl->sensor_i2c_client->addr_type =
             sensor_slave_info.addr_type;
 
-        s_ctrl->power_setting_array =
-            sensor_slave_info.power_setting_array;
-        power_setting_array = &s_ctrl->power_setting_array;
-        power_setting_array->power_setting = kzalloc(
-            power_setting_array->size *
-            sizeof(struct msm_sensor_power_setting), GFP_KERNEL);
-        if (!power_setting_array->power_setting) {
-            pr_err("%s:%d failed\n", __func__, __LINE__);
+		p_ctrl = &s_ctrl->sensordata->power_info;
+		size = sensor_slave_info.power_setting_array.size;
+		if (p_ctrl->power_setting_size < size) {
+			struct msm_sensor_power_setting *tmp;
+			tmp = kmalloc(sizeof(struct msm_sensor_power_setting)
+				      * size, GFP_KERNEL);
+			if (!tmp) {
+				pr_err("%s: failed to alloc mem\n", __func__);
             rc = -ENOMEM;
             break;
         }
-        if (copy_from_user(power_setting_array->power_setting,
-            (void *)sensor_slave_info.power_setting_array.power_setting,
-            power_setting_array->size *
-            sizeof(struct msm_sensor_power_setting))) {
-            kfree(power_setting_array->power_setting);
+			kfree(p_ctrl->power_setting);
+			p_ctrl->power_setting = tmp;
+		}
+		p_ctrl->power_setting_size = size;
+
+		rc = copy_from_user(p_ctrl->power_setting, (void *)
+			sensor_slave_info.power_setting_array.power_setting,
+			size * sizeof(struct msm_sensor_power_setting));
+		if (rc) {
             pr_err("%s:%d failed\n", __func__, __LINE__);
             rc = -EFAULT;
             break;
         }
-        s_ctrl->free_power_setting = true;
         CDBG("%s sensor id %x\n", __func__,
             sensor_slave_info.slave_addr);
         CDBG("%s sensor addr type %d\n", __func__,
@@ -1858,19 +1901,15 @@ int32_t t4k28_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
         CDBG("%s sensor id %x\n", __func__,
             sensor_slave_info.sensor_id_info.sensor_id);
         for (slave_index = 0; slave_index <
-            power_setting_array->size; slave_index++) {
+			p_ctrl->power_setting_size; slave_index++) {
             CDBG("%s i %d power setting %d %d %ld %d\n", __func__,
                 slave_index,
-                power_setting_array->power_setting[slave_index].
-                seq_type,
-                power_setting_array->power_setting[slave_index].
-                seq_val,
-                power_setting_array->power_setting[slave_index].
-                config_val,
-                power_setting_array->power_setting[slave_index].
-                delay);
+				p_ctrl->power_setting[slave_index].seq_type,
+				p_ctrl->power_setting[slave_index].seq_val,
+				p_ctrl->power_setting[slave_index].config_val,
+				p_ctrl->power_setting[slave_index].delay);
         }
-        kfree(power_setting_array->power_setting);
+
         break;
     }
     case CFG_WRITE_I2C_ARRAY: {
@@ -1884,6 +1923,13 @@ int32_t t4k28_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
             rc = -EFAULT;
             break;
         }
+
+		if ((!conf_array.size) ||
+			(conf_array.size > I2C_SEQ_REG_DATA_MAX)) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+			rc = -EFAULT;
+			break;
+		}
 
         reg_setting = kzalloc(conf_array.size *
             (sizeof(struct msm_camera_i2c_reg_array)), GFP_KERNEL);
@@ -1919,6 +1965,12 @@ int32_t t4k28_sensor_config(struct msm_sensor_ctrl_t *s_ctrl, void __user *argp)
             break;
         }
 
+		if ((!conf_array.size) ||
+			(conf_array.size > I2C_SEQ_REG_DATA_MAX)) {
+			pr_err("%s:%d failed\n", __func__, __LINE__);
+			rc = -EFAULT;
+			break;
+		}
         reg_setting = kzalloc(conf_array.size *
             (sizeof(struct msm_camera_i2c_seq_reg_array)),
             GFP_KERNEL);

@@ -11,10 +11,6 @@
  * GNU General Public License for more details.
  *
  */
-/*
- * This software is contributed or developed by KYOCERA Corporation.
- * (C) 2013 KYOCERA Corporation
- */
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -179,17 +175,6 @@ int diag_hdlc_decode(struct diag_hdlc_decode_type *hdlc)
 
 	int pkt_bnd = 0;
 	int msg_start;
-
-#ifndef FEATURE_KYOCERA_DATA_QCOM
-	src_length = hdlc->src_size - hdlc->src_idx;
-	for( ; hdlc->src_idx < hdlc->src_size; hdlc->src_idx++)
-	{
-		if(*(hdlc->src_ptr + hdlc->src_idx) != CONTROL_CHAR)
-		{
-			break;
-		}
-	}
-#endif /* FEATURE_KYOCERA_DATA_QCOM */
 
 	if (hdlc && hdlc->src_ptr && hdlc->dest_ptr &&
 	    (hdlc->src_size > hdlc->src_idx) &&

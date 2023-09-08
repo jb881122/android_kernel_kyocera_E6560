@@ -1,8 +1,4 @@
 #
-# This software is contributed or developed by KYOCERA Corporation.
-# (C) 2014 KYOCERA Corporation
-#
-#
 # Makefile for misc devices that really don't fit anywhere else.
 #
 

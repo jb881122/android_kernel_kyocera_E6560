@@ -41,6 +41,10 @@
 #define SCM_SET_REGSAVE_CMD	0x2
 #define SCM_SVC_SEC_WDOG_DIS	0x7
 
+
+/* Record Last Pet Time for UnknownReset (see. logger.c) */
+extern void set_kcj_pet_time(void);
+
 static struct workqueue_struct *wdog_wq;
 
 struct msm_watchdog_data {
@@ -102,6 +106,7 @@ static int msm_watchdog_suspend(struct device *dev)
 	__raw_writel(1, wdog_dd->base + WDT0_RST);
 	__raw_writel(0, wdog_dd->base + WDT0_EN);
 	mb();
+        set_kcj_pet_time();
 	return 0;
 }
 
@@ -114,6 +119,7 @@ static int msm_watchdog_resume(struct device *dev)
 	__raw_writel(1, wdog_dd->base + WDT0_EN);
 	__raw_writel(1, wdog_dd->base + WDT0_RST);
 	mb();
+        set_kcj_pet_time();
 	return 0;
 }
 
@@ -251,6 +257,7 @@ static void pet_watchdog(struct msm_watchdog_data *wdog_dd)
 	if (slack_ns < wdog_dd->min_slack_ns)
 		wdog_dd->min_slack_ns = slack_ns;
 	wdog_dd->last_pet = time_ns;
+        set_kcj_pet_time();
 }
 
 static void keep_alive_response(void *info)
@@ -444,6 +451,7 @@ static void init_watchdog_work(struct work_struct *work)
 			delay_time);
 	__raw_writel(1, wdog_dd->base + WDT0_EN);
 	__raw_writel(1, wdog_dd->base + WDT0_RST);
+        set_kcj_pet_time();
 	wdog_dd->last_pet = sched_clock();
 	error = device_create_file(wdog_dd->dev, &dev_attr_disable);
 	if (error)
@@ -478,8 +486,9 @@ static int __devinit msm_wdog_dt_to_pdata(struct platform_device *pdev,
 	wdog_resource = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	pdata->size = resource_size(wdog_resource);
 	pdata->phys_base = wdog_resource->start;
-	if (unlikely(!(devm_request_region(&pdev->dev, pdata->phys_base,
-					pdata->size, "msm-watchdog")))) {
+	if (unlikely(!(devm_request_mem_region(&pdev->dev, pdata->phys_base,
+					       pdata->size, "msm-watchdog")))) {
+
 		dev_err(&pdev->dev, "%s cannot reserve watchdog region\n",
 								__func__);
 		return -ENXIO;

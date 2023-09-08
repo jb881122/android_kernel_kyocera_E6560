@@ -1,6 +1,8 @@
 /*
  * This software is contributed or developed by KYOCERA Corporation.
+ * (C) 2013 KYOCERA Corporation
  * (C) 2014 KYOCERA Corporation
+ * (C) 2015 KYOCERA Corporation
  */
 /*
  *  linux/drivers/video/fbmem.c
@@ -39,6 +41,7 @@
 
 #include <asm/fb.h>
 
+#include "msm/mdss/disp_ext.h"
 
     /*
      *  Frame buffer device initialization and setup routines
@@ -49,8 +52,6 @@
 static DEFINE_MUTEX(registration_lock);
 struct fb_info *registered_fb[FB_MAX] __read_mostly;
 int num_registered_fb __read_mostly;
-
-int fb_dm_flag = 0x00;
 
 static struct fb_info *get_fb_info(unsigned int idx)
 {
@@ -1087,16 +1088,15 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	switch (cmd) {
 	case FBIOPUT_DIAGVALID:
 		pr_info("SET do_fb_ioctl(): fb_dm_flag = OFF -----\n");
-		fb_dm_flag = 0x00;
+		disp_ext_set_dmflag(0);
 		return ret;
 	case FBIOPUT_DIAGINVALID:
 		pr_info("SET do_fb_ioctl(): fb_dm_flag = ON -----\n");
-		fb_dm_flag = 0x01;
+		disp_ext_set_dmflag(1);
 		return ret;
 	case FBIOGET_CAMERAONOFF:
 	  {
-		extern 	int cam_power_state;
-		int camera_onoff = cam_power_state;
+		int camera_onoff = 0;
 		ret = copy_to_user(argp, &camera_onoff, sizeof(camera_onoff)) ? -EFAULT : 0;
 		return ret;
 	  }
@@ -1112,6 +1112,8 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		ret = copy_to_user(argp, &var, sizeof(var)) ? -EFAULT : 0;
 		break;
 	case FBIOPUT_VSCREENINFO:
+		if(disp_ext_is_invalid())
+			return 0;
 		if (copy_from_user(&var, argp, sizeof(var)))
 			return -EFAULT;
 		if (!lock_fb_info(info))
@@ -1152,6 +1154,8 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		ret = fb_cmap_to_user(&cmap_from, &cmap);
 		break;
 	case FBIOPAN_DISPLAY:
+		if(disp_ext_is_invalid())
+			return 0;
 		if (copy_from_user(&var, argp, sizeof(var)))
 			return -EFAULT;
 		if (!lock_fb_info(info))

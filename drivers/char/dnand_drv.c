@@ -34,7 +34,28 @@
 const static uint8_t dnand_partition_label[] = DNAND_DRV_DNAND_PARTITION_LABEL;
 
 static int8_t local_mmc_dev_name[32];
+static int8_t local_mmc_dev_name2[32];
 static uint32_t init_dev_name_flg = 0;
+
+#define MAX_READ_SECTOR_NUM    (128)
+#define LIMIT_READ_SECTOR_NUM (0x8000)  /* 16[MB] (0x8000*512) */
+typedef struct emmc_part_info_st
+{
+    char       part_no;
+    int        part_sect;
+} emmc_part_type;
+
+#define MAX_READ_PARTITION_NUM (7)
+const static emmc_part_type part_info[] = {
+    { 0, 0x2000},            /* GPT   */
+    { 2, 0x0800},            /* sbl1  */
+    { 4, 0x0800},            /* sdi   */
+    { 6, 0x0800},            /* aboot */
+    { 8, 0x0800},            /* rpm   */
+    {11, 0x0800},            /* tz    */
+    {34, 0x8000}             /* fota  */
+};
+static uint8_t  g_pbuf[(DNAND_DRV_SECTOR_BLK_SIZE*MAX_READ_SECTOR_NUM)];
 
 static int32_t inter_blk_dev_rw(int8_t *pname, uint32_t sector,
                                 uint32_t num_sector, uint8_t *pbuf,
@@ -241,4 +262,40 @@ int32_t dnand_drv_write(uint32_t sector, uint32_t num_sector, uint8_t *pbuf)
     rtn = inter_blk_dev_rw(pname, sector, num_sector, pbuf, DNAND_DEV_WRITE );
 
     return(rtn);
+}
+
+void dnand_drv_refresh(void)
+{
+    int32_t       loop, r_sect, total_sect;
+    int32_t       rtn;
+
+    if (g_pbuf != NULL)
+    {
+        pr_err("emmc refresh start\n");
+        for (loop = 0; loop < MAX_READ_PARTITION_NUM; loop++)
+        {
+            if (part_info[loop].part_no == 0)
+            {
+//                sprintf((char*)&local_mmc_dev_name2[0], "%s", DNAND_MMC_BLOCK_DEV_NAME_MIBIB);
+                pr_info("GPT partition\n");
+                continue;
+            }
+            else
+            {
+                sprintf((char*)&local_mmc_dev_name2[0], "%s%d", DNAND_MMC_BLOCK_DEV_NAME, part_info[loop].part_no);
+            }
+            total_sect = part_info[loop].part_sect;
+
+            for (r_sect = 0; ((r_sect < total_sect) && (r_sect < LIMIT_READ_SECTOR_NUM)); r_sect+=MAX_READ_SECTOR_NUM)
+            {
+                rtn = inter_blk_dev_rw(local_mmc_dev_name2, r_sect, MAX_READ_SECTOR_NUM, g_pbuf, DNAND_DEV_READ);
+                if (rtn != DNAND_NO_ERROR )
+                {
+                    pr_info("eMMC Read Error : %s sector = 0x%x ret = %d\n",local_mmc_dev_name2, r_sect, rtn);
+                    break;
+                }
+            }
+        }
+        pr_err("emmc refresh finish\n");
+    }
 }

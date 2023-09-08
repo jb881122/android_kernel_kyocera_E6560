@@ -718,6 +718,7 @@ static void call_console_drivers(unsigned start, unsigned end)
 	_call_console_drivers(start_print, end, msg_level);
 }
 
+void update_printk_buffer( void );
 static void emit_log_char(char c)
 {
 	LOG_BUF(log_end) = c;
@@ -728,6 +729,7 @@ static void emit_log_char(char c)
 		con_start = log_end - log_buf_len;
 	if (logged_chars < log_buf_len)
 		logged_chars++;
+	update_printk_buffer();
 }
 
 /*
@@ -1898,3 +1900,149 @@ void kmsg_dump(enum kmsg_dump_reason reason)
 	rcu_read_unlock();
 }
 #endif
+
+#include <linux/proc_fs.h>
+
+#define KERNELLOG_RAM_SIZE		(0x00080000)
+#define KERNELLOG_RAM_MAGIC		(0x43474244)
+
+struct kernellog_buffer {
+	uint32_t			magic;
+	uint32_t			start;
+	uint32_t			size;
+	uint32_t			reserved;
+	uint8_t				data[0];
+};
+
+static struct kernellog_buffer	*pkernellog_buffer = NULL;
+static char *last_kmsg_buffer = NULL;
+static unsigned long last_kmsg_size = 0;
+
+static ssize_t kcj_kernel_log_read_old(struct file *file, char __user *buf, size_t len, loff_t *offset )
+{
+	loff_t pos = *offset;
+	ssize_t count;
+
+	if ( pos >= last_kmsg_size )
+		return 0;
+
+	count = min( len, (size_t)(last_kmsg_size - pos) );
+	if ( copy_to_user(buf, last_kmsg_buffer + pos, count) )
+		return -EFAULT;
+
+	*offset += count;
+	return count;
+}
+
+static void __devinit kcj_kernel_log_save_old( struct kernellog_buffer *pklb )
+{
+	char *dest;
+	uint32_t start = pklb->start;
+	uint32_t size  = pklb->size;
+
+	last_kmsg_size = 0;
+	last_kmsg_buffer = NULL;
+
+	if ( KERNELLOG_RAM_MAGIC == pklb->magic )
+	{
+		if ( (size > KERNELLOG_RAM_SIZE) || (start > size) )
+		{
+			printk( "found existing invalid buffer, size %zu, start %zu\n", size, start );
+
+			dest = kmalloc( KERNELLOG_RAM_SIZE, GFP_KERNEL );
+			if ( dest == NULL )
+			{
+				pr_err( "failed to allocate buffer.(for last_kmsg)\n");
+				return;
+			}
+			memcpy( dest, &pklb->data[0], KERNELLOG_RAM_SIZE );
+			last_kmsg_size = KERNELLOG_RAM_SIZE;
+			last_kmsg_buffer = dest;
+		}
+		else
+		{
+			printk( "found existing buffer, size %zu, start %zu\n", size, start );
+
+			dest = kmalloc( size, GFP_KERNEL );
+			if ( dest == NULL )
+			{
+				pr_err( "failed to allocate buffer.(for last_kmsg)\n");
+				return;
+			}
+			memcpy( dest, &pklb->data[start], (size - start) );
+			memcpy( (dest + size - start), &pklb->data[0], start );
+			last_kmsg_size = size;
+			last_kmsg_buffer = dest;
+		}
+	}
+	else
+	{
+		printk( "no valid data in buffer (magic = 0x%08x)\n", pklb->magic );
+	}
+}
+
+void switch_printk_buffer( unsigned char *dist_addr, unsigned long buff_size )
+{
+	unsigned long		flags;
+
+	pkernellog_buffer = NULL;
+
+	kcj_kernel_log_save_old( (struct kernellog_buffer *)dist_addr );
+
+	raw_spin_lock_irqsave( &logbuf_lock, flags );
+
+	pkernellog_buffer = (struct kernellog_buffer *)dist_addr;
+
+	memcpy( pkernellog_buffer->data, __log_buf, logged_chars );
+	log_buf = pkernellog_buffer->data;
+	log_buf_len = buff_size;
+
+	pkernellog_buffer->magic = KERNELLOG_RAM_MAGIC;
+	pkernellog_buffer->start = log_end;
+	pkernellog_buffer->size  = logged_chars;
+
+	raw_spin_unlock_irqrestore( &logbuf_lock, flags );
+}
+
+/*
+ * update_printk_buffer()
+ */
+void update_printk_buffer( void )
+{
+	if ( NULL != pkernellog_buffer )
+	{
+		pkernellog_buffer->start = (log_end & LOG_BUF_MASK);
+		pkernellog_buffer->size  = (log_end & LOG_BUF_MASK);
+
+		if ( log_end > log_buf_len )
+		{
+			pkernellog_buffer->size = log_buf_len;
+		}
+	}
+}
+
+static const struct file_operations kcj_last_kmsg_file_ops = {
+	.owner = THIS_MODULE,
+	.read = kcj_kernel_log_read_old,
+};
+
+static int __init kcj_last_kmsg_late_init( void )
+{
+	struct proc_dir_entry *entry;
+
+	if ( last_kmsg_buffer == NULL )
+		return 0;
+
+	entry = create_proc_entry( "last_kmsg", S_IFREG | S_IRUGO, NULL );
+	if ( !entry )
+	{
+		printk( "%s: failed to create proc entry\n", __func__ );
+		return 0;
+	}
+
+	entry->proc_fops = &kcj_last_kmsg_file_ops;
+	entry->size = last_kmsg_size;
+	return 0;
+}
+
+late_initcall(kcj_last_kmsg_late_init);

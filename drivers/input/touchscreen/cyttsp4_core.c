@@ -149,6 +149,8 @@ struct cyttsp4_core_data {
 	struct mutex system_lock;
 	struct mutex adap_lock;
 	struct mutex state_lock; 
+	struct mutex change_lock;
+	struct mutex loader_lock;
 	int oem_state; 
 	enum cyttsp4_mode mode;
 	enum cyttsp4_sleep_state sleep_state;
@@ -186,6 +188,7 @@ struct cyttsp4_core_data {
 	struct work_struct touchmode_work;
 	u32 touchmode_enable;
 	
+	bool loader_finished;
 };
 
 struct atten_node {
@@ -2688,9 +2691,31 @@ static void cyttsp4_watchdog_work(struct work_struct *work)
 	u8 mode[2];
 	bool restart = false;
 	int rc;
+	bool loader_finished;
+	int state;
 
 	if (cd == NULL) {
 		dev_err(cd->dev, "%s: NULL context pointer\n", __func__);
+		return;
+	}
+
+	dev_dbg(cd->dev, "%s: start\n", __func__);
+
+	mutex_lock(&cd->state_lock);
+	state = cd->oem_state;
+	mutex_unlock(&cd->state_lock);
+	if (state & OEM_STATE_SLEEP_BIT) {
+		dev_dbg(cd->dev, "%s: skip because lcd off\n", __func__);
+		cyttsp4_start_wd_timer(cd);
+		return;
+	}
+
+	mutex_lock(&cd->loader_lock);
+	loader_finished = cd->loader_finished;
+	mutex_unlock(&cd->loader_lock);
+	if (!loader_finished) {
+		dev_dbg(cd->dev, "%s: skip because loader is not finished\n", __func__);
+		cyttsp4_start_wd_timer(cd);
 		return;
 	}
 
@@ -3150,6 +3175,17 @@ static void cyttsp4_detect_large_(struct cyttsp4_device *ttsp)
 
 	cd->touchmode_enable = CY_CMD_TOUCHMODE_AUTO_GLOVE;
 	schedule_work(&cd->touchmode_work);
+}
+
+static void cyttsp4_loader_finished_(struct cyttsp4_device *ttsp)
+{
+	struct cyttsp4_core *core = ttsp->core;
+	struct cyttsp4_core_data *cd = dev_get_drvdata(&core->dev);
+
+	mutex_lock(&cd->loader_lock);
+	cd->loader_finished = true;
+	mutex_unlock(&cd->loader_lock);
+	dev_info(cd->dev, "%s: end\n", __func__);
 }
 
 static void cyttsp4_touchmode_work(struct work_struct *work)
@@ -4483,11 +4519,14 @@ static int cyttsp4_change_state(struct device *dev, int state)
 {
 	struct cyttsp4_core_data *cd = dev_get_drvdata(dev);
 	int rc = 0;
-	int old_state = cd->oem_state;
+	int old_state;
 
+	mutex_lock(&cd->state_lock);
+	old_state = cd->oem_state;
 	cd->oem_state = state;
+	mutex_unlock(&cd->state_lock);
 
-	dev_dbg(dev, "%s: mode change 0x%04x ==> 0x%04x\n",__func__,old_state,cd->oem_state);
+	dev_info(dev, "%s: mode change 0x%04x ==> 0x%04x\n",__func__,old_state,cd->oem_state);
 	if(old_state == cd->oem_state) {
 		goto done;
 	}
@@ -4624,14 +4663,14 @@ static long cyttsp4_ts_ioctl(struct file *file, unsigned int cmd, unsigned long 
 		}
 		dev_dbg(dev, " %s: change LCD status. [%d]\n",__func__,lcd_stat);
 		if (lcd_stat) {
-			mutex_lock(&cd->state_lock);
+			mutex_lock(&cd->change_lock);
 			cyttsp4_change_state(dev, (cd->oem_state & ~OEM_STATE_SLEEP_BIT));
-			mutex_unlock(&cd->state_lock);
+			mutex_unlock(&cd->change_lock);
 		}
 		else {
-			mutex_lock(&cd->state_lock);
+			mutex_lock(&cd->change_lock);
 			cyttsp4_change_state(dev, (cd->oem_state & ~OEM_STATE_SLEEP_BIT) | OEM_STATE_SLEEP_BIT);
-			mutex_unlock(&cd->state_lock);
+			mutex_unlock(&cd->change_lock);
 		}
 		break;
 	case IOCTL_SET_SENSOR_SWITCH:
@@ -4643,14 +4682,14 @@ static long cyttsp4_ts_ioctl(struct file *file, unsigned int cmd, unsigned long 
 		}
 		dev_dbg(dev, " %s: change sensor switch. [%d]\n",__func__,switch_stat);
 		if (switch_stat) {
-			mutex_lock(&cd->state_lock);
+			mutex_lock(&cd->change_lock);
 			cyttsp4_change_state(dev, (cd->oem_state & ~OEM_STATE_SWITCH_BIT) | OEM_STATE_SWITCH_BIT);
-			mutex_unlock(&cd->state_lock);
+			mutex_unlock(&cd->change_lock);
 		}
 		else {
-			mutex_lock(&cd->state_lock);
+			mutex_lock(&cd->change_lock);
 			cyttsp4_change_state(dev, (cd->oem_state & ~OEM_STATE_SWITCH_BIT));
-			mutex_unlock(&cd->state_lock);
+			mutex_unlock(&cd->change_lock);
 		}
 		break;
 	case IOCTL_MULTI_GET:
@@ -4756,6 +4795,8 @@ static int cyttsp4_core_probe(struct cyttsp4_core *core)
 	mutex_init(&cd->system_lock);
 	mutex_init(&cd->adap_lock);
 	mutex_init(&cd->state_lock); 
+	mutex_init(&cd->change_lock);
+	mutex_init(&cd->loader_lock);
 	spin_lock_init(&cd->spinlock);
 
 	/* Initialize attention lists */
@@ -4932,6 +4973,7 @@ static struct cyttsp4_core_driver cyttsp4_core_driver = {
 	.request_disable_scan_type = cyttsp4_request_disable_scan_type_,
 	.request_detect_finger = cyttsp4_detect_finger_, 
 	.request_detect_large = cyttsp4_detect_large_, 
+	.request_loader_finished = cyttsp4_loader_finished_,
 	.get_security_key = cyttsp4_get_security_key_,
 	.get_touch_record = cyttsp4_get_touch_record_,
 	.write = cyttsp4_write_,

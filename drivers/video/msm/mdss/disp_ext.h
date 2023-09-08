@@ -3,8 +3,11 @@
  * (C) 2012 KYOCERA Corporation
  * (C) 2013 KYOCERA Corporation
  * (C) 2014 KYOCERA Corporation
+ * (C) 2015 KYOCERA Corporation
  *
- * drivers/video/msm/disp_ext.h
+ * drivers/video/msm/mdss/disp_ext.h
+ *
+ * Copyright (c) 2008-2010, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -35,30 +38,12 @@ extern uint8_t fb_dbg_msg_level;
 #define DISP_LOCAL_LOG_EMERG(msg, ...) (void)0;
 #endif
 
-#ifdef CONFIG_DISP_EXT_REFRESH
-void disp_ext_refresh_te_monitor_timer_set( void );
-void disp_ext_refresh_te_monitor_timer_release( void );
-void disp_ext_refresh_set_te_monitor_init(void);
-void disp_ext_refresh_seq( struct msm_fb_data_type *mfd, unsigned int cmd );
-void disp_ext_refresh_err_report_check(struct msm_fb_data_type *mfd);
-irqreturn_t disp_ext_refresh_hw_vsync_irq(int irq, void *data);
-u8 disp_ext_reflesh_get_enable(void);
-void disp_ext_reflesh_set_enable(u8 flag);
-u8 disp_ext_reflesh_get_start(void);
-void disp_ext_reflesh_set_start(u8 flag);
-void disp_ext_reflesh_before_te_run_count_init(void);
-void disp_ext_reflesh_init(void);
-u8 disp_ext_reflesh_get_sw(void);
-void disp_ext_reflesh_set_sw(u8 sw);
-void disp_ext_reflesh_start(void);
-#endif
-#ifdef CONFIG_DISP_EXT_REFRESH_EASY
-void disp_ext_force_mipi_clk_hs( int onoff, unsigned char *ctrl_base );
-void disp_ext_panel_refresh_check( struct fb_info *info );
-int disp_ext_panel_refresh(struct mdss_panel_data *pdata);
-void disp_ext_timer_cycle_start( void );
-void disp_ext_timer_cycle_stop( void );
-#endif 
+#define REG_ERR_CHECK 0x01
+#define IMG_ERR_CHECK 0x02
+#define MIPI_ERR_CHECK 0x04
+
+void disp_ext_set_dmflag(int dmflag);
+int disp_ext_is_invalid(void);
 
 #ifdef CONFIG_DISP_EXT_BOARD
 int disp_ext_board_detect_board(struct mdss_dsi_ctrl_pdata *ctrl);
@@ -66,22 +51,18 @@ int disp_ext_board_get_panel_detect(void);
 void disp_ext_board_set_panel_detect(int flag);
 #endif
 
-#ifdef CONFIG_DISP_EXT_BLC
-u8 disp_ext_blc_get_select_mode(void);
-void disp_ext_blc_set_select_mode(u8 sw);
-void disp_ext_blc_init(void);
-
-void disp_ext_util_cabc_lock( void );
-void disp_ext_util_cabc_unlock( void );
-#endif
-
 #ifdef CONFIG_DISP_EXT_DIAG
-int disp_ext_diag_get_err_crc(struct fb_info *info, unsigned int cmd, unsigned long arg);
+void disp_ext_diag_count_err_status(u32 ack_err_status);
+void disp_ext_diag_set_ack_err_stat(u32 ack_err_status);
+u8 disp_ext_diag_event_flag_check(void);
+void disp_ext_diag_set_mipi_err_chk(bool flag);
 int disp_ext_diag_reg_write(struct fb_info *info, unsigned int cmd, unsigned long arg);
 int disp_ext_diag_reg_read(struct fb_info *info, unsigned int cmd, unsigned long arg);
-int disp_ext_diag_standby(struct fb_info *info, unsigned int cmd, unsigned long arg);
 int disp_ext_diag_tx_rate(struct fb_info *info, unsigned int cmd, unsigned long arg);
-int disp_ext_panel_otp_check( struct fb_info *info );
+int disp_ext_diag_err_check_start(void);
+int disp_ext_diag_err_check_stop(struct fb_info *info, unsigned int cmd, unsigned long arg);
+int disp_ext_diag_current_err_stat(struct fb_info *info, unsigned int cmd, unsigned long arg);
+int disp_ext_diag_img_transfer_sw(struct fb_info *info, unsigned int cmd);
 void disp_ext_diag_init(void);
 
 uint32_t disp_ext_util_get_crc_error(void);
@@ -92,27 +73,33 @@ void disp_ext_util_crc_countup(void);
 #ifdef CONFIG_DISP_EXT_PROPERTY
 void disp_ext_util_set_kcjprop(struct mdss_panel_data *pdata, struct fb_kcjprop_data* kcjprop_data);
 #endif
-
-#ifdef CONFIG_DISP_EXT_UTIL
-local_disp_state_enum disp_ext_util_get_disp_state(void);
-void disp_ext_util_set_disp_state(local_disp_state_enum state);
-struct local_disp_state_type *disp_ext_util_get_disp_info(void);
-void disp_ext_util_disp_local_init( void );
-void disp_ext_util_disp_local_lock( void );
-void disp_ext_util_disp_local_unlock( void );
-void disp_ext_util_mipitx_lock( void );
-void disp_ext_util_mipitx_unlock( void );
-#ifdef CONFIG_DISP_EXT_UTIL_GET_RATE
-u32 disp_ext_util_get_refresh_rate( void );
-#endif
-#ifdef CONFIG_DISP_UTIL_DSI_CLK_OFF
-void disp_ext_util_dsi_clk_off( void );
-#endif 
-#ifdef CONFIG_DISP_EXT_UTIL_VSYNC
-u32 disp_ext_util_get_total_line( void );
-u32 disp_ext_util_get_vsync_count( void );
-u32 disp_ext_util_vsync_cal_start( u32 start_y );
-#endif
+#ifdef CONFIG_DISP_EXT_PP
+void disp_ext_parse_pp(struct device_node *np, struct panel_pp_info *pp_info);
+int disp_ext_pp_config(struct mdss_panel_data *pdata);
+void disp_ext_pp_print_regs(void);
 #endif
 
+int disp_ext_otp_check(struct mdss_dsi_ctrl_pdata *ctrl);
+int disp_ext_otp_check_value(void);
+#ifdef CONFIG_DISP_EXT_LCDBL
+int disp_ext_lcdbl_get_lcdbl_en_gpio(struct device_node *node);
+u32 disp_ext_lcdbl_gpio_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, u32 level);
+#else
+static inline int disp_ext_lcdbl_get_lcdbl_en_gpio(struct device_node *node) { return -EINVAL; }
+static inline u32 disp_ext_lcdbl_gpio_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, u32 level) { return level; }
 #endif
+
+void disp_ext_panel_cmd_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int cmd, int para);
+
+enum {
+	PANEL_TYPE_ERROR = 0,
+	PANEL_TYPE_G = 1,
+	PANEL_TYPE_T = 2
+};
+
+int  disp_ext_panel_get_type(void);
+void disp_ext_panel_set_type(int type);
+int  disp_ext_panel_detect_type(int gpio);
+
+
+#endif /* DISP_EXT_H */

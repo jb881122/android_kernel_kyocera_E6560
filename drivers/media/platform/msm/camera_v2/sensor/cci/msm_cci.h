@@ -11,9 +11,8 @@
  */
 /*
  * This software is contributed or developed by KYOCERA Corporation.
- * (C)2013 KYOCERA Corporation
+ * (C)2015 KYOCERA Corporation
  */
-/*=============================================================================*/
 
 #ifndef MSM_CCI_H
 #define MSM_CCI_H
@@ -33,6 +32,8 @@
 
 #define TRUE  1
 #define FALSE 0
+
+#define CCI_NUM_CLK_MAX	16
 
 enum cci_i2c_queue_t {
 	QUEUE_0,
@@ -58,6 +59,7 @@ enum msm_cci_cmd_type {
 	MSM_CCI_SET_SYNC_CID,
 	MSM_CCI_I2C_READ,
 	MSM_CCI_I2C_WRITE,
+	MSM_CCI_I2C_WRITE_SEQ,
 	MSM_CCI_GPIO_WRITE,
 #ifdef FEATURE_KYOCERA_MCAM
 	MSM_CCI_CLEAR_I2C_STATUS,
@@ -139,7 +141,7 @@ struct cci_device {
 	uint8_t ref_count;
 	enum msm_cci_state_t cci_state;
 
-	struct clk *cci_clk[5];
+	struct clk *cci_clk[CCI_NUM_CLK_MAX];
 	struct msm_camera_cci_i2c_queue_info
 		cci_i2c_queue_info[NUM_MASTERS][NUM_QUEUES];
 	struct msm_camera_cci_master_info cci_master_info[NUM_MASTERS];

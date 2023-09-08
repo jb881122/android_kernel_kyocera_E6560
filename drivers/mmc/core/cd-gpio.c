@@ -43,8 +43,8 @@ out:
 }
 
 extern unsigned char mmc_eject_status;
-
 extern unsigned char sd_failure_flag;
+
 
 static irqreturn_t mmc_cd_gpio_irqt(int irq, void *dev_id)
 {
@@ -62,10 +62,8 @@ static irqreturn_t mmc_cd_gpio_irqt(int irq, void *dev_id)
 				(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH) ?
 				"HIGH" : "LOW");
 		cd->status = status;
-
 		sd_failure_flag = 0;
 		mmc_eject_status = !status;
-
 		/* Schedule a card detection after a debounce timeout */
 		mmc_detect_change(host, msecs_to_jiffies(100));
 	}

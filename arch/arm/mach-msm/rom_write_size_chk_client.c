@@ -2,7 +2,6 @@
  * This software is contributed or developed by KYOCERA Corporation.
  * (C) 2014 KYOCERA Corporation
  */
-
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/cdev.h>
@@ -16,31 +15,32 @@
 #include <linux/mutex.h>
 #include <linux/mmc/host.h>
 #include <linux/mmc/mmc.h>
-
-
+/*****************************/
+/* static valiables */
+/*****************************/
 struct rom_write_chk_device_t {
 	struct miscdevice misc;
 };
 
-
+/* ioctl structure */
 struct rom_write_chk_ioctl_info {
     unsigned int   check_sector_count;
     unsigned int   write_sector_num;
 };
 
-
+/* About IOC_MAGIC, see kernel / Documentation / ioctl / ioctl-number.txt */
 #define IOC_MAGIC 0xF9
 #define ROM_WRITE_CHK_WAIT_FOR_REQ        _IOR(IOC_MAGIC, 1, struct rom_write_chk_ioctl_info)
 #define ROM_WRITE_CHK_END                 _IOR(IOC_MAGIC, 2, struct rom_write_chk_ioctl_info)
 
-#define SAVE_SECTOR_UNIT       0x800  
+#define SAVE_SECTOR_UNIT       0x800  /* 1MB */
 #define CHK_ENABLE  0
 #define CHK_DISABLE 1
 
 wait_queue_head_t event_q;
 
 atomic_t  rom_write_unit_count;
-unsigned char rom_write_chk_enable = CHK_ENABLE;
+unsigned char rom_write_chk_enable = CHK_DISABLE;
 unsigned int  rom_write_sector     = 0;
 
 
@@ -78,13 +78,10 @@ void rom_write_chk_count(struct mmc_host *host, struct mmc_request *mrq)
 	if(rom_write_chk_enable) {
 		return;
 	}
-
 	if((host->index) || ((mrq->cmd->opcode != MMC_WRITE_BLOCK) && (mrq->cmd->opcode != MMC_WRITE_MULTIPLE_BLOCK))) {
 		return;
 	}
-
 	rom_write_sector += mrq->data->blocks;
-
 	if(rom_write_sector > (atomic_read(&rom_write_unit_count) + 1) * SAVE_SECTOR_UNIT) {
 		atomic_inc(&rom_write_unit_count);
 		wake_up(&event_q);
@@ -127,6 +124,7 @@ static int __init rom_write_chk_init(void)
 {
 	int ret;
 
+	/* Initialization */
 	init_waitqueue_head(&event_q);
 
 	ret = misc_register(&rom_write_chk_device.misc);

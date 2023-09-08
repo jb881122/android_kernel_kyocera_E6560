@@ -1,6 +1,6 @@
 /*
  * This software is contributed or developed by KYOCERA Corporation.
- * (C) 2014 KYOCERA Corporation
+ * (C) 2014-2015 KYOCERA Corporation
  */
 #ifndef __LINUX_MONLEY_DEVICE_MODULE_H
 #define __LINUX_MONLEY_DEVICE_MODULE_H

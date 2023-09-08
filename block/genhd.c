@@ -1643,10 +1643,12 @@ static void disk_events_workfn(struct work_struct *work)
 		if (events & disk->events & (1 << i))
 			envp[nr_events++] = disk_uevents[i];
 
+
 		if (disk->interfaces != GENHD_IF_USB) {
 			if (nr_events)
 				kobject_uevent_env(&disk_to_dev(disk)->kobj, KOBJ_CHANGE, envp);
 		}
+
 }
 
 /*

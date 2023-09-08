@@ -1190,6 +1190,8 @@ static int upgrade_firmware_from_builtin(struct cyttsp4_device *ttsp)
 
 	fwname = _fwname[1];
 
+	INIT_COMPLETION(data->builtin_bin_fw_complete);
+  
 	retval = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
 			fwname, dev, GFP_KERNEL, ttsp,
 			_cyttsp4_firmware_cont_builtin);
@@ -1205,6 +1207,34 @@ static int upgrade_firmware_from_builtin(struct cyttsp4_device *ttsp)
 	return data->builtin_bin_fw_status;
 }
 #endif /* CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP4_BINARY_FW_UPGRADE */
+
+#ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_DEVPARAM_UPGRADE
+static int upgrade_firmware_from_devparam(struct cyttsp4_device *ttsp)
+{
+	struct device *dev = &ttsp->dev;
+	struct cyttsp4_loader_data *data = dev_get_drvdata(dev);
+	int retval;
+
+	dev_vdbg(dev, "%s: Enabling firmware class loader devparam\n",
+		__func__);
+
+	INIT_COMPLETION(data->builtin_bin_fw_complete);
+  
+	retval = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+			CY_DEVPARAM_FW_FILE_NAME, dev, GFP_KERNEL, ttsp,
+			_cyttsp4_firmware_cont_builtin);
+	if (retval < 0) {
+		dev_err(dev, "%s: Fail request firmware class file load from devparam\n",
+			__func__);
+		return retval;
+	}
+
+	/* wait until FW binary upgrade finishes */
+	wait_for_completion(&data->builtin_bin_fw_complete);
+
+	return data->builtin_bin_fw_status;
+}
+#endif /* CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_DEVPARAM_UPGRADE */
 
 #if CYTTSP4_TTCONFIG_UPGRADE
 static int cyttsp4_upgrade_ttconfig(struct cyttsp4_device *ttsp,
@@ -1667,6 +1697,8 @@ static int upgrade_ttconfig_from_builtin(struct cyttsp4_device *ttsp)
 	struct cyttsp4_loader_data *data = dev_get_drvdata(dev);
 	int retval;
 
+	INIT_COMPLETION(data->builtin_bin_cfg_complete);
+
 	retval = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
 			CY_CFG_FILE_01_NAME, dev, GFP_KERNEL, ttsp,
 			_cyttsp4_ttconfig_cont_builtin);
@@ -1684,6 +1716,31 @@ static int upgrade_ttconfig_from_builtin(struct cyttsp4_device *ttsp)
 
 
 #endif /* CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP4_MANUAL_TTCONFIG_UPGRADE */
+
+#ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_DEVPARAM_UPGRADE
+static int upgrade_ttconfig_from_devparam(struct cyttsp4_device *ttsp)
+{
+	struct device *dev = &ttsp->dev;
+	struct cyttsp4_loader_data *data = dev_get_drvdata(dev);
+	int retval;
+
+	INIT_COMPLETION(data->builtin_bin_cfg_complete);
+
+	retval = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+			CY_DEVPARAM_CFG_FILE_NAME, dev, GFP_KERNEL, ttsp,
+			_cyttsp4_ttconfig_cont_builtin);
+	if (retval < 0) {
+		dev_err(dev, "%s: Fail request ttconfig class file load\n",
+			__func__);
+		return retval;
+	}
+
+	/* wait until CFG binary upgrade finishes */
+	wait_for_completion(&data->builtin_bin_cfg_complete);
+
+	return 0;
+}
+#endif /* CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_DEVPARAM_UPGRADE */
 
 static void cyttsp4_fw_and_config_upgrade(
 		struct work_struct *fw_and_config_upgrade)
@@ -1704,7 +1761,12 @@ static void cyttsp4_fw_and_config_upgrade(
 
 #ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP4_PLATFORM_FW_UPGRADE
 	if (!upgrade_firmware_from_platform(ttsp, false))
-		return;
+		goto exit;
+#endif
+
+#ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_DEVPARAM_UPGRADE
+	if (!upgrade_firmware_from_devparam(ttsp))
+		dev_dbg(dev, "%s: upgrade firmware of devparam is completed\n",__func__);
 #endif
 
 #ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP4_BINARY_FW_UPGRADE
@@ -1714,14 +1776,23 @@ static void cyttsp4_fw_and_config_upgrade(
 
 #ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP4_PLATFORM_TTCONFIG_UPGRADE
 	if (!upgrade_ttconfig_from_platform(ttsp))
-		return;
+		goto exit;
 #endif
+
+#ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP5_DEVPARAM_UPGRADE
+	if (!upgrade_ttconfig_from_devparam(ttsp))
+		dev_dbg(dev, "%s: upgrade ttconfig of devparam is completed\n",__func__);
+#endif
+
 
 #ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP4_MANUAL_TTCONFIG_UPGRADE
 	if (!upgrade_ttconfig_from_builtin(ttsp))
-		return;
+		goto exit;
 #endif /* CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP4_MANUAL_TTCONFIG_UPGRADE */
 
+
+exit:
+	cyttsp4_request_loader_finished(ttsp);
 }
 
 #ifdef CONFIG_TOUCHSCREEN_CYPRESS_CYTTSP4_PLATFORM_FW_UPGRADE
@@ -1848,6 +1919,7 @@ error_create_forced_upgrade:
 	kfree(data);
 error_alloc_data_failed:
 	dev_err(dev, "%s failed.\n", __func__);
+	cyttsp4_request_loader_finished(ttsp);
 	return rc;
 }
 

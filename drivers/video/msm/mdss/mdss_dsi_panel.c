@@ -1,8 +1,9 @@
 /*
  * This software is contributed or developed by KYOCERA Corporation.
  * (C) 2014 KYOCERA Corporation
+ * (C) 2015 KYOCERA Corporation
  */
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -27,188 +28,10 @@
 #include <linux/err.h>
 
 #include "mdss_dsi.h"
-#include <mach/board.h>
 #include "disp_ext.h"
-#include <linux/msm_mdp.h>
+#include <mach/board.h>
 #include <mach/kc_board.h>
-
-static void disp_ext_panel_cmb_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level);
-int dev_lcd_lcdbl_save = 0;
-int disp_ext_init_panel_on_flg = 1;
-static spinlock_t devlcd_lock;
-void disp_ext_lcdbl_gpio_pulse(int gpio, int pulse )
-{
-  int i;
-  unsigned long flags;
-  spin_lock_irqsave(&devlcd_lock, flags);
-  for( i = 0; i < pulse; i++)
-  {
-    gpio_direction_output(gpio ,0);
-    gpio_direction_output(gpio ,1);
-  }
-  spin_unlock_irqrestore(&devlcd_lock, flags);
-  udelay(750);
-}
-
-int disp_ext_lcdbl_hw_s2c_calc( int and )
-{
-  int s2c = 1;
-#if 1
-  if((0 < and) && (and < 10)){
-    s2c = (((-16 * and) + 320) / 10);
-  }else if((10 <= and) && (and <= 36)){
-    s2c = ((-615 * and) + 23140) / 1000;
-  }
-#endif
-  return(s2c);
-}
-
-int disp_ext_lcdbl_hw_pwm_calc( int and )
-{
-  int pwm = 0;
-  if((0 < and) && ( and <= 36 )){
-    pwm = 26;
-  }if((36 < and) && ( and <= 102 )){
-    pwm = ((489 * and) + 7000) / 1000;
-    pwm++;
-  }else if((102 < and) && ( and <= 255 )){
-    pwm = ((111 * and) - 5633) / 100;
-    pwm++;
-  }
-  return(pwm);
-}
-
-#define DISP_EXT_CMD_ADJ 90
-int disp_ext_lcdbl_hw_cmb_calc( int and, int pwm )
-{
-	int cmb = pwm;
-	if(pwm > 32){
-		cmb = (pwm * DISP_EXT_CMD_ADJ) / 100;
-	}
-	return(cmb);
-}
-
-static char disp_ext_save_cmb = 0;
-static char disp_ext_pre_cmb  = 0;
-void disp_ext_lcdbl_cmb_write( struct mdss_dsi_ctrl_pdata *ctrl )
-{
-	if(disp_ext_pre_cmb != disp_ext_save_cmb){
-		disp_ext_panel_cmb_dcs(ctrl, disp_ext_save_cmb);
-		disp_ext_pre_cmb = disp_ext_save_cmb;
-	}
-}
-
-int disp_ext_lcdbl_gpio_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, int and)
-{
-	char s2c = 0, pwm = 0, work_and = and;
-	static char pre_s2c = 0;
-	static char pre_and = 0;
-	if (!gpio_is_valid(ctrl->disp_bl_gpio)) {
-		printk("%s:%d, lcd bl gpio none!!! \n", __func__, __LINE__);
-		return(pwm);
-	}
-
-	if(and == 0){
-		gpio_direction_output((ctrl->disp_bl_gpio), 0);
-		pre_s2c = 0;
-		disp_ext_pre_cmb = disp_ext_save_cmb = 0;
-	}else{
-		if(and > 248){
-			work_and = 248;
-		}
-		s2c = disp_ext_lcdbl_hw_s2c_calc(work_and);
-		pwm = disp_ext_lcdbl_hw_pwm_calc(work_and);
-		disp_ext_save_cmb = disp_ext_lcdbl_hw_cmb_calc(work_and, pwm);
-		if(s2c != pre_s2c){
-			disp_ext_lcdbl_gpio_pulse(ctrl->disp_bl_gpio, s2c);
-			pre_s2c = s2c;
-		}
-		if(!pre_and){
-			msleep(15);
-			disp_ext_lcdbl_cmb_write(ctrl);
-			printk("%s(LCD BL ENABLE) lv:%d \n", __func__, and);
-		}
-	}
-	pre_and = and;
-	return(pwm);
-}
-
-struct color_adjustment_data color_adj_data = {0, 0, 0, 0, 0, 0};
-struct color_adjustment_internal_parameter color_adj_keep_param = {
-	0,
-	{
-		DATA_COLOR_ADJ_RED,    
-		DATA_COLOR_ADJ_YELLOW, 
-		DATA_COLOR_ADJ_BLUE    
-	},
-	{
-		0x82, 
-		0x00, 
-		0x00  
-	}
-};
-
-static int disp_ext_get_invert_ctrl(void)
-{
-	return color_adj_data.invert;
-}
-
-static void disp_ext_set_invert_ctrl(int data)
-{
-	color_adj_data.invert = data;
-}
-
-static int disp_ext_get_color_adjustment_enable_ctrl(void)
-{
-	return color_adj_data.enable;
-}
-
-static void disp_ext_set_color_adjustment_enable_ctrl(int data)
-{
-	color_adj_data.enable = data;
-}
-
-static int disp_ext_get_color_adjustment_red_ctrl(void)
-{
-	return color_adj_data.red;
-}
-
-static void disp_ext_set_color_adjustment_red_ctrl(int data)
-{
-	color_adj_data.red = data;
-}
-
-static int disp_ext_get_color_adjustment_green_ctrl(void)
-{
-	return color_adj_data.green;
-}
-
-static void disp_ext_set_color_adjustment_green_ctrl(int data)
-{
-	color_adj_data.green = data;
-}
-
-static int disp_ext_get_color_adjustment_blue_ctrl(void)
-{
-	return color_adj_data.blue;
-}
-
-static void disp_ext_set_color_adjustment_blue_ctrl(int data)
-{
-	color_adj_data.blue = data;
-}
-
-static void disp_ext_init_color_adjustment_param_ctrl(void)
-{
-	color_adj_keep_param.invert = 0;
-	color_adj_keep_param.color[COLOR_ADJ_1] = DATA_COLOR_ADJ_RED;
-	color_adj_keep_param.color[COLOR_ADJ_2] = DATA_COLOR_ADJ_YELLOW;
-	color_adj_keep_param.color[COLOR_ADJ_3] = DATA_COLOR_ADJ_BLUE;
-	color_adj_keep_param.data[COLOR_ADJ_1] = 0x82;
-	color_adj_keep_param.data[COLOR_ADJ_2] = 0x00;
-	color_adj_keep_param.data[COLOR_ADJ_3] = 0x00;
-}
-
+int disp_ext_firston_flg = 1;
 
 #define DT_CMD_HDR 6
 
@@ -227,6 +50,7 @@ static void mdss_dsi_panel_bklt_pwm(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
 	int ret;
 	u32 duty;
+	u32 period_ns;
 
 	if (ctrl->pwm_bl == NULL) {
 		pr_err("%s: no PWM\n", __func__);
@@ -255,10 +79,23 @@ static void mdss_dsi_panel_bklt_pwm(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 		ctrl->pwm_enabled = 0;
 	}
 
-	ret = pwm_config_us(ctrl->pwm_bl, duty, ctrl->pwm_period);
-	if (ret) {
-		pr_err("%s: pwm_config_us() failed err=%d.\n", __func__, ret);
-		return;
+	if (ctrl->pwm_period >= USEC_PER_SEC) {
+		ret = pwm_config_us(ctrl->pwm_bl, duty, ctrl->pwm_period);
+		if (ret) {
+			pr_err("%s: pwm_config_us() failed err=%d.\n",
+					__func__, ret);
+			return;
+		}
+	} else {
+		period_ns = ctrl->pwm_period * NSEC_PER_USEC;
+		ret = pwm_config(ctrl->pwm_bl,
+				level * period_ns / ctrl->bklt_max,
+				period_ns);
+		if (ret) {
+			pr_err("%s: pwm_config() failed err=%d.\n",
+					__func__, ret);
+			return;
+		}
 	}
 
 	ret = pwm_enable(ctrl->pwm_bl);
@@ -338,203 +175,6 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 }
-
-static char led_cmb1[2] = {0x5E, 0x0};
-static struct dsi_cmd_desc cabc_mini_cmd = {
-	{DTYPE_DCS_WRITE1, 1, 0, 0, 1, sizeof(led_cmb1)}, led_cmb1
-};
-
-static void disp_ext_panel_cmb_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
-{
-	struct dcs_cmd_req cmdreq;
-
-	pr_debug("%s: level=%d\n", __func__, level);
-
-	led_cmb1[1] = (unsigned char)level;
-
-	memset(&cmdreq, 0, sizeof(cmdreq));
-	cmdreq.cmds = &cabc_mini_cmd;
-	cmdreq.cmds_cnt = 1;
-	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
-	cmdreq.rlen = 0;
-	cmdreq.cb = NULL;
-
-	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
-}
-
-static char invert_off[2] = {REG_INVERT_OFF, 0x00};
-static struct dsi_cmd_desc invert_off_cmd = {
-	{DTYPE_DCS_WRITE, 1, 0, 0, 1, sizeof(invert_off)},
-	invert_off
-};
-
-static void mdss_dsi_panel_invert_off_dcs(struct mdss_dsi_ctrl_pdata *ctrl)
-{
-	struct dcs_cmd_req cmdreq;
-
-	pr_info("%s: invert off\n", __func__);
-
-	memset(&cmdreq, 0, sizeof(cmdreq));
-	cmdreq.cmds = &invert_off_cmd;
-	cmdreq.cmds_cnt = 1;
-	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
-	cmdreq.rlen = 0;
-	cmdreq.cb = NULL;
-
-	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
-}
-
-static char invert_on[2] = {REG_INVERT_ON, 0x00};
-static struct dsi_cmd_desc invert_on_cmd = {
-	{DTYPE_DCS_WRITE, 1, 0, 0, 1, sizeof(invert_on)},
-	invert_on
-};
-
-static void mdss_dsi_panel_invert_on_dcs(struct mdss_dsi_ctrl_pdata *ctrl)
-{
-	struct dcs_cmd_req cmdreq;
-
-	pr_info("%s: invert on\n", __func__);
-
-	memset(&cmdreq, 0, sizeof(cmdreq));
-	cmdreq.cmds = &invert_on_cmd;
-	cmdreq.cmds_cnt = 1;
-	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
-	cmdreq.rlen = 0;
-	cmdreq.cb = NULL;
-
-	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
-}
-
-static char adjust1[4] = {REG_COLOR_ADJ1, 0x00, 0x00, 0x00};
-static struct dsi_cmd_desc adjust1_cmd = {
-	{DTYPE_DCS_LWRITE, 1, 0, 0, 1, sizeof(adjust1)},
-	adjust1
-};
-
-static void mdss_dsi_panel_color_adjustment1_dcs(struct mdss_dsi_ctrl_pdata *ctrl, unsigned char color, unsigned char data)
-{
-	struct dcs_cmd_req cmdreq;
-	unsigned char saturation;
-
-	if (color == DATA_COLOR_ADJ_RED) {
-		pr_info("%s: color adjustment1 color=red data=0x%02x\n", __func__, data);
-	} else if (color == DATA_COLOR_ADJ_YELLOW) {
-		pr_info("%s: color adjustment1 color=yellow data=0x%02x\n", __func__, data);
-	} else if (color == DATA_COLOR_ADJ_GREEN) {
-		pr_info("%s: color adjustment1 color=green data=0x%02x\n", __func__, data);
-	} else if (color == DATA_COLOR_ADJ_BLUE) {
-		pr_info("%s: color adjustment1 color=blue data=0x%02x\n", __func__, data);
-	} else {
-		pr_info("%s: color adjustment1 color=other data=0x%02x\n", __func__, data);
-	}
-
-	if ((color == DATA_COLOR_ADJ_RED)) {
-		saturation = 0x02;
-	} else {
-		saturation = 0x00;
-	}
-
-	adjust1[1] = color;
-	adjust1[2] = data;
-	adjust1[3] = saturation;
-
-	memset(&cmdreq, 0, sizeof(cmdreq));
-	cmdreq.cmds = &adjust1_cmd;
-	cmdreq.cmds_cnt = 1;
-	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
-	cmdreq.rlen = 0;
-	cmdreq.cb = NULL;
-
-	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
-}
-
-static char adjust2[4] = {REG_COLOR_ADJ2, 0x00, 0x00, 0x00};
-static struct dsi_cmd_desc adjust2_cmd = {
-	{DTYPE_DCS_LWRITE, 1, 0, 0, 1, sizeof(adjust2)},
-	adjust2
-};
-
-static void mdss_dsi_panel_color_adjustment2_dcs(struct mdss_dsi_ctrl_pdata *ctrl, unsigned char color, unsigned char data)
-{
-	struct dcs_cmd_req cmdreq;
-	unsigned char saturation;
-
-	if (color == DATA_COLOR_ADJ_RED) {
-		pr_info("%s: color adjustment2 color=red data=0x%02x\n", __func__, data);
-	} else if (color == DATA_COLOR_ADJ_YELLOW) {
-		pr_info("%s: color adjustment2 color=yellow data=0x%02x\n", __func__, data);
-	} else if (color == DATA_COLOR_ADJ_GREEN) {
-		pr_info("%s: color adjustment2 color=green data=0x%02x\n", __func__, data);
-	} else if (color == DATA_COLOR_ADJ_BLUE) {
-		pr_info("%s: color adjustment2 color=blue data=0x%02x\n", __func__, data);
-	} else {
-		pr_info("%s: color adjustment2 color=other data=0x%02x\n", __func__, data);
-	}
-
-	if ((color == DATA_COLOR_ADJ_RED)) {
-		saturation = 0x02;
-	} else {
-		saturation = 0x00;
-	}
-
-	adjust2[1] = color;
-	adjust2[2] = data;
-	adjust2[3] = saturation;
-
-	memset(&cmdreq, 0, sizeof(cmdreq));
-	cmdreq.cmds = &adjust2_cmd;
-	cmdreq.cmds_cnt = 1;
-	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
-	cmdreq.rlen = 0;
-	cmdreq.cb = NULL;
-
-	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
-}
-
-static char adjust3[4] = {REG_COLOR_ADJ3, 0x00, 0x00, 0x00};
-static struct dsi_cmd_desc adjust3_cmd = {
-	{DTYPE_DCS_LWRITE, 1, 0, 0, 1, sizeof(adjust3)},
-	adjust3
-};
-
-static void mdss_dsi_panel_color_adjustment3_dcs(struct mdss_dsi_ctrl_pdata *ctrl, unsigned char color, unsigned char data)
-{
-	struct dcs_cmd_req cmdreq;
-	unsigned char saturation;
-	
-	if (color == DATA_COLOR_ADJ_RED) {
-		pr_info("%s: color adjustment3 color=red data=0x%02x\n", __func__, data);
-	} else if (color == DATA_COLOR_ADJ_YELLOW) {
-		pr_info("%s: color adjustment3 color=yellow data=0x%02x\n", __func__, data);
-	} else if (color == DATA_COLOR_ADJ_GREEN) {
-		pr_info("%s: color adjustment3 color=green data=0x%02x\n", __func__, data);
-	} else if (color == DATA_COLOR_ADJ_BLUE) {
-		pr_info("%s: color adjustment3 color=blue data=0x%02x\n", __func__, data);
-	} else {
-		pr_info("%s: color adjustment3 color=other data=0x%02x\n", __func__, data);
-	}
-
-	if ((color == DATA_COLOR_ADJ_RED)) {
-		saturation = 0x02;
-	} else {
-		saturation = 0x00;
-	}
-
-	adjust3[1] = color;
-	adjust3[2] = data;
-	adjust3[3] = saturation;
-
-	memset(&cmdreq, 0, sizeof(cmdreq));
-	cmdreq.cmds = &adjust3_cmd;
-	cmdreq.cmds_cnt = 1;
-	cmdreq.flags = CMD_REQ_COMMIT | CMD_CLK_CTRL;
-	cmdreq.rlen = 0;
-	cmdreq.cb = NULL;
-
-	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
-}
-
 
 static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
@@ -700,6 +340,36 @@ static int mdss_dsi_panel_partial_update(struct mdss_panel_data *pdata)
 	return rc;
 }
 
+static void mdss_dsi_panel_switch_mode(struct mdss_panel_data *pdata,
+							int mode)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+	struct mipi_panel_info *mipi;
+	struct dsi_panel_cmds *pcmds;
+
+	if (pdata == NULL) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return;
+	}
+
+	mipi  = &pdata->panel_info.mipi;
+
+	if (!mipi->dynamic_switch_enabled)
+		return;
+
+	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+
+	if (mode == DSI_CMD_MODE)
+		pcmds = &ctrl_pdata->video2cmd;
+	else
+		pcmds = &ctrl_pdata->cmd2video;
+
+	mdss_dsi_panel_cmds_send(ctrl_pdata, pcmds);
+
+	return;
+}
+
 static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 							u32 bl_level)
 {
@@ -721,8 +391,8 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 
 	if ((bl_level < pdata->panel_info.bl_min) && (bl_level != 0))
 		bl_level = pdata->panel_info.bl_min;
-	dev_lcd_lcdbl_save = bl_level;
-	if(bl_level != 0){
+
+	if (bl_level != 0) {
 		bl_level = disp_ext_lcdbl_gpio_ctrl(ctrl_pdata, bl_level);
 	}
 
@@ -751,195 +421,10 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 			__func__);
 		break;
 	}
-	if(bl_level == 0){
+	if (bl_level == 0) {
 		disp_ext_lcdbl_gpio_ctrl(ctrl_pdata, 0);
 	}
 
-}
-
-void disp_ext_panel_bl_ctrl_direct( struct mdss_panel_data *pdata, u32 bl_level )
-{
-  mdss_dsi_panel_bl_ctrl(pdata, bl_level);
-}
-
-static void mdss_dsi_invert_ctrl(struct mdss_panel_data *pdata, int invert_data)
-{
-	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
-
-	if (pdata == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return;
-	}
-
-	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
-				panel_data);
-
-	if (!disp_ext_init_panel_on_flg) {
-		if (color_adj_keep_param.invert != invert_data) {
-			if (invert_data) {
-				mdss_dsi_panel_invert_on_dcs(ctrl_pdata);
-			} else {
-				mdss_dsi_panel_invert_off_dcs(ctrl_pdata);
-			}
-			color_adj_keep_param.invert = invert_data;
-		}
-	} else {
-		pr_err("%s:do not ready\n", __func__);
-	}
-
-	disp_ext_set_invert_ctrl(invert_data);
-}
-
-void disp_ext_invert_ctrl_direct(struct mdss_panel_data *pdata, int data)
-{
-	data = (data) ? 1 : 0;
-	mdss_dsi_invert_ctrl(pdata, data);
-}
-
-static unsigned char disp_ext_convert_data(unsigned char color, int data)
-{
-	unsigned char ret;
-
-	if (data == 0) {
-		ret = (color == DATA_COLOR_ADJ_RED) ? 0x82 : 0x80; /* default(red:0x82/other:0x80) */
-	} else {
-		ret = (data < 0) ? 0x00 : 0x80; /* anticlockwise or clockwise */
-		data = (data < 0) ? (-1 * data) : data;
-		data = data * 3; /* 0 ... 15 */
-		ret = ret | (unsigned char)data;
-	}
-
-	return ret;
-}
-
-static void disp_ext_convert_color_adj_parameter(int enable, int red, int green, int blue, unsigned char *color, unsigned char *data)
-{
-	unsigned char temp_color[COLOR_ADJ_NUM];
-	unsigned char temp_data[COLOR_ADJ_NUM];
-	int enable_yellow = 0;
-
-	memset(temp_color, 0x00, sizeof(temp_color));
-	memset(temp_data, 0x00, sizeof(temp_data));
-
-	if (!enable) {
-		temp_color[COLOR_ADJ_1] = DATA_COLOR_ADJ_RED;
-		temp_color[COLOR_ADJ_2] = DATA_COLOR_ADJ_YELLOW;
-		temp_color[COLOR_ADJ_3] = DATA_COLOR_ADJ_BLUE;
-		temp_data[COLOR_ADJ_1] = 0x82;
-		temp_data[COLOR_ADJ_2] = 0x00;
-		temp_data[COLOR_ADJ_3] = 0x00;
-	} else {
-		if ((green == 0) || (blue == 0)) {
-			enable_yellow = 1;
-		}
-
-		/* reg:0x74 */
-		temp_color[COLOR_ADJ_1] = DATA_COLOR_ADJ_RED;
-		temp_data[COLOR_ADJ_1] = disp_ext_convert_data(DATA_COLOR_ADJ_RED, red);
-
-		/* reg:0x75 */
-		if (green != 0) {
-			temp_color[COLOR_ADJ_2] = DATA_COLOR_ADJ_GREEN;
-			temp_data[COLOR_ADJ_2] = disp_ext_convert_data(DATA_COLOR_ADJ_GREEN, green);
-		} else {
-			temp_color[COLOR_ADJ_2] = DATA_COLOR_ADJ_YELLOW;
-			temp_data[COLOR_ADJ_2] = 0x00;
-			enable_yellow = 0;
-		}
-
-		/* reg:0x76 */
-		if (!enable_yellow) {
-			temp_color[COLOR_ADJ_3] = DATA_COLOR_ADJ_BLUE;
-			temp_data[COLOR_ADJ_3] = disp_ext_convert_data(DATA_COLOR_ADJ_BLUE, blue);
-		} else {
-			temp_color[COLOR_ADJ_3] = DATA_COLOR_ADJ_YELLOW;
-			temp_data[COLOR_ADJ_3] = 0x00;
-		}
-	}
-
-	memcpy(color, temp_color, 3);
-	memcpy(data, temp_data, 3);
-}
-
-static int mdss_dsi_color_adjustment_ctrl(struct mdss_panel_data *pdata, unsigned char *color, unsigned char *data)
-{
-	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
-
-	if (pdata == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return 0;
-	}
-
-	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
-				panel_data);
-
-	if (!disp_ext_init_panel_on_flg) {
-
-		/* reg:0x74 */
-		if ((color_adj_keep_param.color[COLOR_ADJ_1] != color[COLOR_ADJ_1]) ||
-			(color_adj_keep_param.data[COLOR_ADJ_1] != data[COLOR_ADJ_1])) {
-			mdss_dsi_panel_color_adjustment1_dcs(ctrl_pdata, color[COLOR_ADJ_1], data[COLOR_ADJ_1]);
-			color_adj_keep_param.color[COLOR_ADJ_1] = color[COLOR_ADJ_1];
-			color_adj_keep_param.data[COLOR_ADJ_1] = data[COLOR_ADJ_1];
-		}
-
-		/* reg:0x75 */
-		if ((color_adj_keep_param.color[COLOR_ADJ_2] != color[COLOR_ADJ_2]) ||
-			(color_adj_keep_param.data[COLOR_ADJ_2] != data[COLOR_ADJ_2])) {
-			mdss_dsi_panel_color_adjustment2_dcs(ctrl_pdata, color[COLOR_ADJ_2], data[COLOR_ADJ_2]);
-			color_adj_keep_param.color[COLOR_ADJ_2] = color[COLOR_ADJ_2];
-			color_adj_keep_param.data[COLOR_ADJ_2] = data[COLOR_ADJ_2];
-		}
-
-		/* reg:0x76 */
-		if ((color_adj_keep_param.color[COLOR_ADJ_3] != color[COLOR_ADJ_3]) ||
-			(color_adj_keep_param.data[COLOR_ADJ_3] != data[COLOR_ADJ_3])) {
-			mdss_dsi_panel_color_adjustment3_dcs(ctrl_pdata, color[COLOR_ADJ_3], data[COLOR_ADJ_3]);
-			color_adj_keep_param.color[COLOR_ADJ_3] = color[COLOR_ADJ_3];
-			color_adj_keep_param.data[COLOR_ADJ_3] = data[COLOR_ADJ_3];
-		}
-	} else {
-		pr_err("%s:do not ready\n", __func__);
-		return 1; /* only keep data */
-	}
-
-	return 1;
-}
-
-static void disp_ext_color_adjustment_ctrl(struct mdss_panel_data *pdata, int enable, int red, int green, int blue)
-{
-	unsigned char color[COLOR_ADJ_NUM];
-	unsigned char data[COLOR_ADJ_NUM];
-	int ret;
-
-	enable = (enable) ? 1 : 0;
-
-	red = (red > 5) ? 5 : red;
-	red = (red < -5) ? -5 : red;
-
-	green = (green > 5) ? 5 : green;
-	green = (green < -5) ? -5 : green;
-
-	blue = (blue > 5) ? 5 : blue;
-	blue = (blue < -5) ? -5 : blue;
-
-	disp_ext_convert_color_adj_parameter(enable, red, green, blue, color, data);
-
-	ret = mdss_dsi_color_adjustment_ctrl(pdata, color, data);
-
-	if (ret) {
-		disp_ext_set_color_adjustment_enable_ctrl(enable);
-		disp_ext_set_color_adjustment_red_ctrl(red);
-		disp_ext_set_color_adjustment_green_ctrl(green);
-		disp_ext_set_color_adjustment_blue_ctrl(blue);
-	} else {
-		pr_err("%s: Invalid input data\n", __func__);
-	}
-}
-
-void disp_ext_color_adjustment_ctrl_direct(struct mdss_panel_data *pdata, int enable, int red, int green, int blue)
-{
-	disp_ext_color_adjustment_ctrl(pdata, enable, red, green, blue);
 }
 
 static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
@@ -958,26 +443,17 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 
 	printk("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
 
+#ifdef CONFIG_DISP_EXT_BOARD
+	if(disp_ext_board_detect_board(ctrl) == -1) {
+		pr_err("%s:disp_ext_board_detect_board err:\n", __func__);
+	}
+#endif /* CONFIG_DISP_EXT_BOARD */
+
 	if (ctrl->on_cmds.cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
 
+	disp_ext_firston_flg = 0;
 	printk("%s:-\n", __func__);
-
-	if(disp_ext_init_panel_on_flg){
-		if(oem_is_off_charge()){
-			/* offcharge */
-		}else{
-			disp_ext_panel_bl_ctrl_direct(pdata, 102);
-			printk("Startup anime Backlight on!!! \n");
-		}
-		disp_ext_init_panel_on_flg = 0;
-	}
-
-	disp_ext_init_color_adjustment_param_ctrl();
-	disp_ext_invert_ctrl_direct(pdata, disp_ext_get_invert_ctrl());
-	disp_ext_color_adjustment_ctrl_direct(pdata, disp_ext_get_color_adjustment_enable_ctrl(),
-		disp_ext_get_color_adjustment_red_ctrl(), disp_ext_get_color_adjustment_green_ctrl(),
-		disp_ext_get_color_adjustment_blue_ctrl());
 	return 0;
 }
 
@@ -995,8 +471,6 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 				panel_data);
 
 	printk("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
-	
-	mdss_dsi_panel_bl_ctrl(pdata,0);
 
 	mipi  = &pdata->panel_info.mipi;
 
@@ -1118,11 +592,16 @@ static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
 		len -= dchdr->dlen;
 	}
 
-	data = of_get_property(np, link_key, NULL);
-	if (data && !strcmp(data, "dsi_hs_mode"))
-		pcmds->link_state = DSI_HS_MODE;
-	else
-		pcmds->link_state = DSI_LP_MODE;
+	/*Set default link state to LP Mode*/
+	pcmds->link_state = DSI_LP_MODE;
+
+	if (link_key) {
+		data = of_get_property(np, link_key, NULL);
+		if (data && !strcmp(data, "dsi_hs_mode"))
+			pcmds->link_state = DSI_HS_MODE;
+		else
+			pcmds->link_state = DSI_LP_MODE;
+	}
 
 	pr_debug("%s: dcs_cmd=%x len=%d, cmd_cnt=%d link_state=%d\n", __func__,
 		pcmds->buf[0], pcmds->blen, pcmds->cmd_cnt, pcmds->link_state);
@@ -1135,7 +614,7 @@ exit_free:
 }
 
 
-static int mdss_panel_dt_get_dst_fmt(u32 bpp, char mipi_mode, u32 pixel_packing,
+int mdss_panel_get_dst_fmt(u32 bpp, char mipi_mode, u32 pixel_packing,
 				char *dst_format)
 {
 	int rc = 0;
@@ -1258,6 +737,41 @@ static int mdss_dsi_parse_fbc_params(struct device_node *np,
 	return 0;
 }
 
+static void mdss_panel_parse_te_params(struct device_node *np,
+				       struct mdss_panel_info *panel_info)
+{
+
+	u32 tmp;
+	int rc = 0;
+	/*
+	 * TE default: dsi byte clock calculated base on 70 fps;
+	 * around 14 ms to complete a kickoff cycle if te disabled;
+	 * vclk_line base on 60 fps; write is faster than read;
+	 * init == start == rdptr;
+	 */
+	panel_info->te.tear_check_en =
+		!of_property_read_bool(np, "qcom,mdss-tear-check-disable");
+	rc = of_property_read_u32
+		(np, "qcom,mdss-tear-check-sync-cfg-height", &tmp);
+	panel_info->te.sync_cfg_height = (!rc ? tmp : 0xfff0);
+	rc = of_property_read_u32
+		(np, "qcom,mdss-tear-check-sync-init-val", &tmp);
+	panel_info->te.vsync_init_val = (!rc ? tmp : panel_info->yres);
+	rc = of_property_read_u32
+		(np, "qcom,mdss-tear-check-sync-threshold-start", &tmp);
+	panel_info->te.sync_threshold_start = (!rc ? tmp : 4);
+	rc = of_property_read_u32
+		(np, "qcom,mdss-tear-check-sync-threshold-continue", &tmp);
+	panel_info->te.sync_threshold_continue = (!rc ? tmp : 4);
+	rc = of_property_read_u32(np, "qcom,mdss-tear-check-start-pos", &tmp);
+	panel_info->te.start_pos = (!rc ? tmp : panel_info->yres);
+	rc = of_property_read_u32
+		(np, "qcom,mdss-tear-check-rd-ptr-trigger-intr", &tmp);
+	panel_info->te.rd_ptr_irq = (!rc ? tmp : panel_info->yres + 1);
+	rc = of_property_read_u32(np, "qcom,mdss-tear-check-frame-rate", &tmp);
+	panel_info->te.refx100 = (!rc ? tmp : 6000);
+}
+
 
 static int mdss_dsi_parse_reset_seq(struct device_node *np,
 		u32 rst_seq[MDSS_DSI_RST_SEQ_LEN], u32 *rst_len,
@@ -1287,6 +801,39 @@ static int mdss_dsi_parse_reset_seq(struct device_node *np,
 	return 0;
 }
 
+static void mdss_dsi_parse_roi_alignment(struct device_node *np,
+		struct mdss_panel_info *pinfo)
+{
+	int len = 0;
+	u32 value[6];
+	struct property *data;
+	data = of_find_property(np, "qcom,panel-roi-alignment", &len);
+	len /= sizeof(u32);
+	if (!data || (len != 6)) {
+		pr_err("%s: Panel roi alignment not found", __func__);
+	} else {
+		int rc = of_property_read_u32_array(np,
+				"qcom,panel-roi-alignment", value, len);
+		if (rc)
+			pr_err("%s: Error reading panel roi alignment values",
+					__func__);
+		else {
+			pinfo->xstart_pix_align = value[0];
+			pinfo->width_pix_align = value[1];
+			pinfo->ystart_pix_align = value[2];
+			pinfo->height_pix_align = value[3];
+			pinfo->min_width = value[4];
+			pinfo->min_height = value[5];
+		}
+
+		pr_info("%s: ROI alignment: [%d, %d, %d, %d, %d, %d]",
+				__func__, pinfo->xstart_pix_align,
+				pinfo->width_pix_align, pinfo->ystart_pix_align,
+				pinfo->height_pix_align, pinfo->min_width,
+				pinfo->min_height);
+	}
+}
+
 static int mdss_dsi_parse_panel_features(struct device_node *np,
 	struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -1313,6 +860,27 @@ static int mdss_dsi_parse_panel_features(struct device_node *np,
 		"qcom,ulps-enabled");
 	pr_info("%s: ulps feature %s", __func__,
 		(pinfo->ulps_feature_enabled ? "enabled" : "disabled"));
+	pinfo->esd_check_enabled = of_property_read_bool(np,
+		"qcom,esd-check-enabled");
+
+	pinfo->mipi.dynamic_switch_enabled = of_property_read_bool(np,
+		"qcom,dynamic-mode-switch-enabled");
+
+	if (pinfo->mipi.dynamic_switch_enabled) {
+		mdss_dsi_parse_dcs_cmds(np, &ctrl->video2cmd,
+			"qcom,video-to-cmd-mode-switch-commands", NULL);
+
+		mdss_dsi_parse_dcs_cmds(np, &ctrl->cmd2video,
+			"qcom,cmd-to-video-mode-switch-commands", NULL);
+
+		if (!ctrl->video2cmd.cmd_cnt || !ctrl->cmd2video.cmd_cnt) {
+			pr_warn("No commands specified for dynamic switch\n");
+			pinfo->mipi.dynamic_switch_enabled = 0;
+		}
+	}
+
+	pr_info("%s: dynamic switch feature enabled: %d", __func__,
+		pinfo->mipi.dynamic_switch_enabled);
 
 	return 0;
 }
@@ -1371,9 +939,11 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	tmp = 0;
 	data = of_get_property(np, "qcom,mdss-dsi-pixel-packing", NULL);
 	if (data && !strcmp(data, "loose"))
-		tmp = 1;
-	rc = mdss_panel_dt_get_dst_fmt(pinfo->bpp,
-		pinfo->mipi.mode, tmp,
+		pinfo->mipi.pixel_packing = 1;
+	else
+		pinfo->mipi.pixel_packing = 0;
+	rc = mdss_panel_get_dst_fmt(pinfo->bpp,
+		pinfo->mipi.mode, pinfo->mipi.pixel_packing,
 		&(pinfo->mipi.dst_format));
 	if (rc) {
 		pr_debug("%s: problem determining dst format. Set Default\n",
@@ -1394,13 +964,14 @@ static int mdss_panel_parse_dt(struct device_node *np,
 		else if (!strcmp(pdest, "display_2"))
 			pinfo->pdest = DISPLAY_2;
 		else {
-			pr_debug("%s: pdest not specified. Set Default\n",
-								__func__);
+			pr_debug("%s: incorrect pdest. Set Default\n",
+				__func__);
 			pinfo->pdest = DISPLAY_1;
 		}
 	} else {
-		pr_err("%s: pdest not specified\n", __func__);
-		return -EINVAL;
+		pr_debug("%s: pdest not specified. Set Default\n",
+				__func__);
+		pinfo->pdest = DISPLAY_1;
 	}
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-h-front-porch", &tmp);
 	pinfo->lcdc.h_front_porch = (!rc ? tmp : 6);
@@ -1482,6 +1053,8 @@ static int mdss_panel_parse_dt(struct device_node *np,
 		"qcom,mdss-dsi-hsa-power-mode");
 	pinfo->mipi.hbp_power_stop = of_property_read_bool(np,
 		"qcom,mdss-dsi-hbp-power-mode");
+	pinfo->mipi.last_line_interleave_en = of_property_read_bool(np,
+		"qcom,mdss-dsi-last-line-interleave");
 	pinfo->mipi.bllp_power_stop = of_property_read_bool(np,
 		"qcom,mdss-dsi-bllp-power-mode");
 	pinfo->mipi.eof_bllp_power_stop = of_property_read_bool(
@@ -1577,6 +1150,7 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	pinfo->mipi.init_delay = (!rc ? tmp : 0);
 
 	mdss_dsi_parse_fbc_params(np, pinfo);
+	mdss_dsi_parse_roi_alignment(np, pinfo);
 
 	mdss_dsi_parse_trigger(np, &(pinfo->mipi.mdp_trigger),
 		"qcom,mdss-dsi-mdp-trigger");
@@ -1588,9 +1162,10 @@ static int mdss_panel_parse_dt(struct device_node *np,
 
 	mdss_dsi_parse_reset_seq(np, pinfo->rst_seq, &(pinfo->rst_seq_len),
 		"qcom,mdss-dsi-reset-sequence");
+	mdss_panel_parse_te_params(np, pinfo);
 
 #if 1
-	if (mdss_dsi_panel_get_type() != PANEL_TYPE_G) {
+	if (disp_ext_panel_get_type() != PANEL_TYPE_G) {
 		if(OEM_get_board() >= OEM_BOARD_PP_TYPE){
 			mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->on_cmds,
 				"qcom,mdss-dsi-on-command", "qcom,mdss-dsi-on-command-state");
@@ -1628,6 +1203,23 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->off_cmds,
 		"qcom,mdss-dsi-off-command", "qcom,mdss-dsi-off-command-state");
 #endif
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->status_cmds,
+			"qcom,mdss-dsi-panel-status-command",
+				"qcom,mdss-dsi-panel-status-command-state");
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-panel-status-value", &tmp);
+	ctrl_pdata->status_value = (!rc ? tmp : 0);
+
+
+	ctrl_pdata->status_mode = ESD_MAX;
+	rc = of_property_read_string(np,
+				"qcom,mdss-dsi-panel-status-check-mode", &data);
+	if (!rc) {
+		if (!strcmp(data, "bta_check"))
+			ctrl_pdata->status_mode = ESD_BTA;
+		else if (!strcmp(data, "reg_read"))
+			ctrl_pdata->status_mode = ESD_REG;
+	}
 
 	rc = mdss_dsi_parse_panel_features(np, ctrl_pdata);
 	if (rc) {
@@ -1675,11 +1267,13 @@ int mdss_dsi_panel_init(struct device_node *node,
 	pr_info("%s: Continuous splash %s", __func__,
 		pinfo->cont_splash_enabled ? "enabled" : "disabled");
 
+	pinfo->dynamic_switch_pending = false;
+	pinfo->is_lpm_mode = false;
+
 	ctrl_pdata->on = mdss_dsi_panel_on;
 	ctrl_pdata->off = mdss_dsi_panel_off;
 	ctrl_pdata->panel_data.set_backlight = mdss_dsi_panel_bl_ctrl;
+	ctrl_pdata->switch_mode = mdss_dsi_panel_switch_mode;
 
-	spin_lock_init(&devlcd_lock);
 	return 0;
 }
-

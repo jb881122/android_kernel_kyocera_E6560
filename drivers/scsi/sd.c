@@ -60,7 +60,6 @@
 #include <asm/unaligned.h>
 #include <linux/kthread.h>
 
-
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_dbg.h>
@@ -2598,8 +2597,10 @@ static void sd_scanpartition_async(void *data, async_cookie_t cookie)
 	struct hd_struct *part;
 	int err;
 
+	/* delay uevents, until we scanned partition table */
 	dev_set_uevent_suppress(ddev, 1);
 
+	/* No minors to use for partitions */
 	if (!disk_partitionable(gd)) {
 		sd_printk(KERN_NOTICE, sdkp, "No disc partitions\n");
 		goto exit;

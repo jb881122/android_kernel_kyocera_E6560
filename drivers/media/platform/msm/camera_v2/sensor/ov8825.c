@@ -12,9 +12,8 @@
  */
 /*
  * This software is contributed or developed by KYOCERA Corporation.
- * (C)2013 KYOCERA Corporation
+ * (C)2015 KYOCERA Corporation
  */
-/*=============================================================================*/
 
 #include "msm_sensor.h"
 #define OV8825_SENSOR_NAME "ov8825"

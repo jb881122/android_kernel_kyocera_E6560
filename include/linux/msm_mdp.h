@@ -1,6 +1,8 @@
 /*
  * This software is contributed or developed by KYOCERA Corporation.
+ * (C) 2013 KYOCERA Corporation
  * (C) 2014 KYOCERA Corporation
+ * (C) 2015 KYOCERA Corporation
  */
 /* include/linux/msm_mdp.h
  *
@@ -85,25 +87,58 @@
 #define MSMFB_ASYNC_BLIT              _IOW(MSMFB_IOCTL_MAGIC, 168, unsigned int)
 #define MSMFB_OVERLAY_PREPARE		_IOWR(MSMFB_IOCTL_MAGIC, 169, \
 						struct mdp_overlay_list)
+#define MSMFB_LPM_ENABLE        _IOWR(MSMFB_IOCTL_MAGIC, 170, unsigned int)
+
+#define MSMFB_MIPI_REG_WRITE  _IOWR(MSMFB_IOCTL_MAGIC, 180, \
+						struct disp_diag_mipi_write_reg_type)
+#define MSMFB_MIPI_REG_READ   _IOWR(MSMFB_IOCTL_MAGIC, 181, \
+						struct disp_diag_mipi_read_reg_type)
+#define MSMFB_DISPLAY_STANDBY _IOW(MSMFB_IOCTL_MAGIC, 182, unsigned int)
+#define MSMFB_CHANGE_TRANSFER_RATE _IOW(MSMFB_IOCTL_MAGIC, 183, uint32_t)
+#define MSMFB_DISP_MSG_OUT    _IOW(MSMFB_IOCTL_MAGIC, 184, \
+						struct disp_diag_message_out)
+#define MSMFB_ERR_CHK_START   _IO(MSMFB_IOCTL_MAGIC, 185)
+#define MSMFB_ERR_CHK_STOP    _IOR(MSMFB_IOCTL_MAGIC, 186, \
+						struct disp_diag_err_check_type)
+#define MSMFB_CURRENT_ERR_STAT _IOR(MSMFB_IOCTL_MAGIC, 187, \
+						struct disp_diag_err_check_type)
+#define MSMFB_IMG_TRANSFER_ON  _IO(MSMFB_IOCTL_MAGIC, 188)
+#define MSMFB_IMG_TRANSFER_OFF _IO(MSMFB_IOCTL_MAGIC, 189)
+#define MSMFB_OTP_READ         _IOWR(MSMFB_IOCTL_MAGIC, 190, unsigned int)
+#define MSMFB_DISP_DET_GET    _IOWR(MSMFB_IOCTL_MAGIC, 191, int)
+
+
 #define FB_TYPE_3D_PANEL 0x10101010
 #define MDP_IMGTYPE2_START 0x10000
 #define MSMFB_DRIVER_VERSION	0xF9E8D701
 
-#define MSMFB_MIPI_REG_WRITE  _IOW(MSMFB_IOCTL_MAGIC, 170, struct disp_diag_mipi_reg_type)
-#define MSMFB_MIPI_REG_READ   _IOWR(MSMFB_IOCTL_MAGIC, 171, struct disp_diag_mipi_reg_type)
-#define MSMFB_DISPLAY_STANDBY _IOW(MSMFB_IOCTL_MAGIC, 172, unsigned int)
-#define MSMFB_GET_STATUS      _IOR(MSMFB_IOCTL_MAGIC, 173, struct local_disp_state_type)
-#define MSMFB_GET_REF_SW      _IOR(MSMFB_IOCTL_MAGIC, 174, uint8_t)
-#define MSMFB_REFRESH_SEQ     _IOW(MSMFB_IOCTL_MAGIC, 175, unsigned int)
-#define MSMFB_CRC_GET         _IOR(MSMFB_IOCTL_MAGIC, 176, uint32_t)
-#define MSMFB_CRC_RESET       _IOW(MSMFB_IOCTL_MAGIC, 177, unsigned int)
-#define MSMFB_CHANGE_TRANSFER_RATE _IOW(MSMFB_IOCTL_MAGIC, 178, uint32_t)
-#define MSMFB_DISP_MSG_OUT    _IOW(MSMFB_IOCTL_MAGIC, 179, struct disp_diag_message_out)
-#if 1
-#define MSMFB_COLOR_ADJ       _IOW(MSMFB_IOCTL_MAGIC, 180, struct color_adjustment_data)
-#define MSMFB_PANEL_OTP_CHECK _IOW(MSMFB_IOCTL_MAGIC, 181, unsigned int)
-#endif
+/* HW Revisions for different MDSS targets */
+#define MDSS_GET_MAJOR(rev)		((rev) >> 28)
+#define MDSS_GET_MINOR(rev)		(((rev) >> 16) & 0xFFF)
+#define MDSS_GET_STEP(rev)		((rev) & 0xFFFF)
+#define MDSS_GET_MAJOR_MINOR(rev)	((rev) >> 16)
+
+#define IS_MDSS_MAJOR_MINOR_SAME(rev1, rev2)	\
+	(MDSS_GET_MAJOR_MINOR((rev1)) == MDSS_GET_MAJOR_MINOR((rev2)))
+
+#define MDSS_MDP_REV(major, minor, step)	\
+	((((major) & 0x000F) << 28) |		\
+	 (((minor) & 0x0FFF) << 16) |		\
+	 ((step)   & 0xFFFF))
+
+#define MDSS_MDP_HW_REV_100	MDSS_MDP_REV(1, 0, 0) /* 8974 v1.0 */
+#define MDSS_MDP_HW_REV_101	MDSS_MDP_REV(1, 1, 0) /* 8x26 v1.0 */
+#define MDSS_MDP_HW_REV_101_1	MDSS_MDP_REV(1, 1, 1) /* 8x26 v2.0, 8926 v1.0 */
+#define MDSS_MDP_HW_REV_101_2	MDSS_MDP_REV(1, 1, 2) /* 8926 v2.0 */
+#define MDSS_MDP_HW_REV_102	MDSS_MDP_REV(1, 2, 0) /* 8974 v2.0 */
+#define MDSS_MDP_HW_REV_102_1	MDSS_MDP_REV(1, 2, 1) /* 8974 v3.0 (Pro) */
+#define MDSS_MDP_HW_REV_103	MDSS_MDP_REV(1, 3, 0) /* 8084 v1.0 */
+#define MDSS_MDP_HW_REV_103_1	MDSS_MDP_REV(1, 3, 1) /* 8084 v1.1 */
+#define MDSS_MDP_HW_REV_200	MDSS_MDP_REV(2, 0, 0) /* 8092 v1.0 */
+
 enum {
+	NOTIFY_UPDATE_INIT,
+	NOTIFY_UPDATE_DEINIT,
 	NOTIFY_UPDATE_START,
 	NOTIFY_UPDATE_STOP,
 	NOTIFY_UPDATE_POWER_OFF,
@@ -113,6 +148,7 @@ enum {
 	NOTIFY_TYPE_NO_UPDATE,
 	NOTIFY_TYPE_SUSPEND,
 	NOTIFY_TYPE_UPDATE,
+	NOTIFY_TYPE_BL_UPDATE,
 };
 
 enum {
@@ -173,11 +209,6 @@ enum {
 	NUM_HSIC_PARAM,
 };
 
-#define MSMFB_GAMMA_KCJPROP_DATA_NUM 24
-#define MSMFB_MIPI_DSICLK_KCJPROP_DATA_NUM 6
-#define MIPI_REFREH_SEQ_ALL 0
-#define MIPI_REFREH_SEQ_LCD 1
-
 #define MDSS_MDP_ROT_ONLY		0x80
 #define MDSS_MDP_RIGHT_MIXER		0x100
 #define MDSS_MDP_DUAL_PIPE		0x200
@@ -218,6 +249,7 @@ enum {
 #define MDP_MEMORY_ID_TYPE_FB		0x00001000
 #define MDP_BWC_EN			0x00000400
 #define MDP_DECIMATION_EN		0x00000800
+#define MDP_SMP_FORCE_ALLOC            0x00200000
 #define MDP_TRANSP_NOP 0xffffffff
 #define MDP_ALPHA_NOP 0xff
 
@@ -525,6 +557,7 @@ enum mdss_mdp_blend_op {
 	BLEND_OP_MAX,
 };
 
+#define DECIMATED_DIMENSION(dim, deci) (((dim) + ((1 << (deci)) - 1)) >> (deci))
 #define MAX_PLANES	4
 struct mdp_scale_data {
 	uint8_t enable_pxl_ext;
@@ -553,6 +586,23 @@ struct mdp_scale_data {
 };
 
 /**
+ * enum mdp_overlay_pipe_type - Different pipe type set by userspace
+ *
+ * @PIPE_TYPE_AUTO:    Not specified, pipe will be selected according to flags.
+ * @PIPE_TYPE_VIG:     VIG pipe.
+ * @PIPE_TYPE_RGB:     RGB pipe.
+ * @PIPE_TYPE_DMA:     DMA pipe.
+ * @PIPE_TYPE_MAX:     Used to track maximum number of pipe type.
+ */
+enum mdp_overlay_pipe_type {
+        PIPE_TYPE_AUTO = 0,
+        PIPE_TYPE_VIG,
+        PIPE_TYPE_RGB,
+        PIPE_TYPE_DMA,
+        PIPE_TYPE_MAX,
+};
+
+/**
  * struct mdp_overlay - overlay surface structure
  * @src:	Source image information (width, height, format).
  * @src_rect:	Source crop rectangle, portion of image that will be fetched.
@@ -574,6 +624,7 @@ struct mdp_scale_data {
  *		The color should be in same format as the source image format.
  * @flags:	This is used to customize operation of overlay. See MDP flags
  *		for more information.
+ * @pipe_type:  Used to specify the type of overlay pipe.
  * @user_data:	DEPRECATED* Used to store user application specific information.
  * @bg_color:	Solid color used to fill the overlay surface when no source
  *		buffer is provided.
@@ -606,6 +657,7 @@ struct mdp_overlay {
 	uint32_t blend_op;
 	uint32_t transp_mask;
 	uint32_t flags;
+	uint32_t pipe_type;
 	uint32_t id;
 	uint32_t user_data[6];
 	uint32_t bg_color;
@@ -835,6 +887,7 @@ enum {
 
 #define MDSS_MAX_BL_BRIGHTNESS 255
 #define AD_BL_LIN_LEN 256
+#define AD_BL_ATT_LUT_LEN 33
 
 #define MDSS_AD_MODE_AUTO_BL	0x0
 #define MDSS_AD_MODE_AUTO_STR	0x1
@@ -863,9 +916,13 @@ struct mdss_ad_init {
 	uint16_t frame_h;
 	uint8_t logo_v;
 	uint8_t logo_h;
+	uint32_t alpha;
+	uint32_t alpha_base;
 	uint32_t bl_lin_len;
+	uint32_t bl_att_len;
 	uint32_t *bl_lin;
 	uint32_t *bl_lin_inv;
+	uint32_t *bl_att_lut;
 };
 
 #define MDSS_AD_BL_CTRL_MODE_EN 1
@@ -1092,57 +1149,50 @@ enum {
 	MDP_WRITEBACK_MIRROR_RESUME,
 };
 
-struct disp_diag_mipi_reg_type {
+
+struct disp_diag_mipi_write_reg_type {
 	uint8_t type;
+	uint8_t speed;
+	uint8_t bta;
 	uint8_t wait;
 	uint8_t len;
-	uint8_t  data[25];
+	uint8_t dummy;
+	uint8_t data[25];
+
+	char ack_err_status[2];
 };
 
-typedef enum {
-	LOCAL_DISPLAY_DEF = 0,
-	LOCAL_DISPLAY_POWER_OFF,
-	LOCAL_DISPLAY_POWER_ON,
-	LOCAL_DISPLAY_ON,
-	LOCAL_DISPLAY_OFF,
-	LOCAL_DISPLAY_TERM
-} local_disp_state_enum;
-
-struct local_disp_state_type {
-	uint32_t crc_error_state;
-	uint32_t crc_error_count;
-	uint32_t refresh_1stupdate_flg;
-	local_disp_state_enum disp_state;
-	uint8_t first_dispon_flg;
+struct disp_diag_mipi_read_reg_type {
+	uint8_t type;
+	uint8_t speed;
+	uint8_t wait;
+	uint8_t len;
+	uint8_t rlen;
+	uint8_t data[25];
 };
+
+struct disp_diag_err_check_type {
+	char count_err_status[16];
+};
+
+#define MSMFB_GAMMA_KCJPROP_DATA_NUM 48
 
 struct fb_kcjprop_data
 {
 	int rw_display_cabc_valid;
 	int rw_display_gamma_valid;
-	int rw_display_reflesh_valid;
+	int rw_display_mipi_err_valid;
 	uint8_t rw_display_cabc;
-	uint8_t  rw_display_gamma_r[MSMFB_GAMMA_KCJPROP_DATA_NUM];
-	uint8_t  rw_display_gamma_g[MSMFB_GAMMA_KCJPROP_DATA_NUM];
-	uint8_t  rw_display_gamma_b[MSMFB_GAMMA_KCJPROP_DATA_NUM];
-	uint8_t rw_display_reflesh;
+	uint8_t rw_display_gamma_r[MSMFB_GAMMA_KCJPROP_DATA_NUM];
+	uint8_t rw_display_gamma_g[MSMFB_GAMMA_KCJPROP_DATA_NUM];
+	uint8_t rw_display_gamma_b[MSMFB_GAMMA_KCJPROP_DATA_NUM];
+	uint8_t rw_display_mipi_err;
 };
 
 struct disp_diag_message_out {
 	uint8_t type;
 	uint8_t level;
 };
-
-#if 1
-struct color_adjustment_data {
-	int enable;
-	int red;
-	int green;
-	int blue;
-	int invert;
-	int reserved;
-};
-#endif
 
 #ifdef __KERNEL__
 int msm_fb_get_iommu_domain(struct fb_info *info, int domain);

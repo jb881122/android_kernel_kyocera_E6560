@@ -3,7 +3,7 @@
  * (C) 2014 KYOCERA Corporation
  */
 /*
- * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -195,6 +195,7 @@ enum qpnp_adc_calib_type {
  * %CHAN_PATH_SCALING2: ratio of {1, 4}
  * %CHAN_PATH_SCALING3: ratio of {1, 6}
  * %CHAN_PATH_SCALING4: ratio of {1, 20}
+ * %CHAN_PATH_SCALING5: ratio of {1, 8}
  * %CHAN_PATH_NONE: Do not use this pre-scaling ratio type.
  *
  * The pre-scaling is applied for signals to be within the voltage range
@@ -206,6 +207,7 @@ enum qpnp_adc_channel_scaling_param {
 	PATH_SCALING2,
 	PATH_SCALING3,
 	PATH_SCALING4,
+	PATH_SCALING5,
 	PATH_SCALING_NONE,
 };
 
@@ -846,6 +848,7 @@ struct qpnp_vadc_chan_properties {
 	enum qpnp_adc_meas_timer_2		meas_interval2;
 	enum qpnp_adc_tm_channel_select		tm_channel_select;
 	enum qpnp_state_request			state_request;
+	enum qpnp_adc_calib_type		calib_type;
 	struct qpnp_vadc_linear_graph	adc_graph[2];
 };
 
@@ -889,6 +892,7 @@ struct qpnp_adc_amux {
 	enum qpnp_adc_scale_fn_type		adc_scale_fn;
 	enum qpnp_adc_fast_avg_ctl		fast_avg_setup;
 	enum qpnp_adc_hw_settle_time		hw_settle_time;
+	enum qpnp_adc_calib_type		calib_type;
 };
 
 /**
@@ -900,7 +904,8 @@ static const struct qpnp_vadc_scaling_ratio qpnp_vadc_amux_scaling_ratio[] = {
 	{1, 3},
 	{1, 4},
 	{1, 6},
-	{1, 20}
+	{1, 20},
+	{1, 8}
 };
 
 /**
@@ -1395,6 +1400,7 @@ int32_t qpnp_vbat_sns_comp_result(struct qpnp_vadc_chip *dev,
  */
 int qpnp_adc_get_revid_version(struct device *dev);
 
+
 /**
  * qpnp_adc_scale_camera_therm() - Scales the pre-calibrated digital output
  *		of an ADC to the ADC reference and compensates for the
@@ -1547,6 +1553,7 @@ static inline int32_t qpnp_vbat_sns_comp_result(struct qpnp_vadc_chip *dev,
 { return -ENXIO; }
 static inline int qpnp_adc_get_revid_version(struct device *dev)
 { return -ENXIO; }
+
 
 static inline int32_t qpnp_adc_scale_camera_therm(struct qpnp_vadc_chip *vadc,
 			int32_t adc_code,

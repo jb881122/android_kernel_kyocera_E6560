@@ -1,4 +1,9 @@
-/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+/*
+ * This software is contributed or developed by KYOCERA Corporation.
+ * (C) 2013 KYOCERA Corporation
+ * (C) 2014 KYOCERA Corporation
+ */
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -8,9 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * This software is contributed or developed by KYOCERA Corporation.
- * (C) 2014 KYOCERA Corporation
  *
  */
 
@@ -31,8 +33,9 @@
 #include <asm/mach-types.h>
 #include <mach/socinfo.h>
 #include <mach/subsystem_notif.h>
+#include <sound/q6core.h>
+
 #include <qdsp6v2/msm-pcm-routing-v2.h>
-#include "qdsp6v2/q6core.h"
 #include "../codecs/wcd9xxx-common.h"
 #include "../codecs/wcd9306.h"
 
@@ -44,6 +47,10 @@
 #define SAMPLING_RATE_48KHZ 48000
 #define SAMPLING_RATE_96KHZ 96000
 #define SAMPLING_RATE_192KHZ 192000
+
+#ifdef CONFIG_KYOCERA_MSND
+ #include <mach/kc_board.h>
+#endif
 
 #define DRV_NAME "msm8226-asoc-tapan"
 
@@ -73,26 +80,12 @@
 #define SPK_AMP_HI_Z GPIO_CFG(76,0,GPIO_CFG_INPUT, GPIO_CFG_NO_PULL,GPIO_CFG_2MA)
 #define SPK_AMP_OUT  GPIO_CFG(76,0,GPIO_CFG_OUTPUT,GPIO_CFG_NO_PULL,GPIO_CFG_2MA)
 
-#define GAIN_FILEPTTH     "/persist/devcfg/AudioExternalGain.dat"
-#define MAX_DATA_SIZE     10
-#define READ_BYTE_NUM     1
-#define SPACE             0x20
-#define CR                0x0D
-#define LF                0x0A
-#define GAIN_NUM          2
-#define GAIN_RCV_SEL      0x0001
-#define GAIN_RCV_GAIN     0x0002
-#define GAIN_ALL          ( GAIN_RCV_SEL | \
-                            GAIN_RCV_GAIN)
-static bool kc_setup_gain = false;
-static uint kc_rcv_sel    = 0x0001;
-static uint kc_rcv_gain   = 0x0001;
 #else
 #define LO_1_SPK_AMP   0x1
 #define LO_2_SPK_AMP   0x2
 #endif
 
-#define ADSP_STATE_READY_TIMEOUT_MS 3000
+#define ADSP_STATE_READY_TIMEOUT_MS 50
 
 static void *adsp_state_notifier;
 
@@ -120,6 +113,7 @@ static struct wcd9xxx_mbhc_config mbhc_cfg = {
 	.read_fw_bin = false,
 	.calibration = NULL,
 	.micbias = MBHC_MICBIAS2,
+	.anc_micbias = MBHC_MICBIAS2,
 	.mclk_cb_fn = msm_snd_enable_codec_ext_clk,
 	.mclk_rate = TAPAN_EXT_CLK_RATE,
 	.gpio = 0,
@@ -139,9 +133,12 @@ static struct wcd9xxx_mbhc_config mbhc_cfg = {
 	.swap_gnd_mic = NULL,
 	.cs_enable_flags = (1 << MBHC_CS_ENABLE_POLLING |
 			    1 << MBHC_CS_ENABLE_INSERTION |
-			    1 << MBHC_CS_ENABLE_REMOVAL),
+			    1 << MBHC_CS_ENABLE_REMOVAL |
+			    1 << MBHC_CS_ENABLE_DET_ANC),
 	.do_recalibration = true,
 	.use_vddio_meas = true,
+	.enable_anc_mic_detect = false,
+	.hw_jack_type = FOUR_POLE_JACK,
 };
 
 struct msm_auxpcm_gpio {
@@ -212,146 +209,6 @@ static int msm_proxy_rx_ch = 2;
 static int slim0_rx_sample_rate = SAMPLING_RATE_48KHZ;
 static int slim0_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 
-#ifdef CONFIG_KYOCERA_MSND
-struct chenge_gain_table {
-  uint *gain_data;
-  uint tmp_data;
-};
-
-static bool get_data( struct file *filp, char *data, uint *cnt )
-{
-	char temp     = 0;
-	int  read_cnt = 0;
-	bool data_hit = false;
-	int  i;
-
-	do {
-		read_cnt = filp->f_op->read( filp, &temp, READ_BYTE_NUM, &(filp->f_pos) );
-		if ( read_cnt != 0 ) {
-			pr_debug("%s : data = [0x%x]\n", __func__, temp);
-			if( temp != SPACE && temp != CR && temp != LF ) {
-				pr_debug("%s : data HIT\n", __func__);
-				(filp->f_pos)--;
-				data_hit = true;
-			} else {
-				pr_debug("%s : check next data\n", __func__);
-			}
-		} else {
-			pr_debug("%s : data EOF\n", __func__);
-		}
-	} while ( read_cnt > 0 && data_hit == false );
-
-	if ( data_hit ) {
-		for (i=0; i<MAX_DATA_SIZE; i++) {
-			read_cnt = filp->f_op->read( filp, &temp, READ_BYTE_NUM, &(filp->f_pos) );
-			if ( read_cnt != 0 ) {
-				if( temp != SPACE && temp != CR && temp != LF ) {
-					pr_debug("%s : data = [0x%x]\n", __func__, temp);
-					data[*cnt] = temp;
-					(*cnt)++;
-				} else {
-					pr_debug("%s : data END\n", __func__);
-					break;
-				}
-			} else {
-				pr_debug("%s : data EOF\n", __func__);
-				break;
-			}
-		}
-	}
-	return data_hit;
-}
-
-static bool chg_hex_data( char *data, uint cnt , uint *sum)
-{
-	int i;
-	bool ret = true;
-
-	for ( i = 0; i < cnt; i++ ) {
-		if( data[i] >= '0' && data[i] <= '9' ) {
-			data[i] = data[i] - '0';
-			pr_debug("%s : data[%d] = [0x%04x]\n", __func__, i, data[i]);
-		} else if ( data[i] >= 'a' && data[i] <= 'f' ) {
-			data[i] = data[i] - 'a' + 10;
-			pr_debug("%s : data[%d] = [0x%04x]\n", __func__, i, data[i]);
-		} else if ( data[i] >= 'A' && data[i] <= 'F' ) {
-			data[i] = data[i] - 'A' + 10;
-			pr_debug("%s : data[%d] = [0x%04x]\n", __func__, i, data[i]);
-		} else {
-			pr_err("%s : invalid data\n", __func__);
-			ret = false;
-			break;
-		}
-		*sum |= (uint)data[i] << ((( cnt - 1 ) - i ) * 4 );
-		pr_debug("%s : sum = [0x%04x]\n", __func__, *sum);
-	}
-	return ret;
-}
-
-static void kc_read_gain_data( void )
-{
-	struct file *filp;
-	char type[MAX_DATA_SIZE];
-	uint type_cnt;
-	char data[MAX_DATA_SIZE];
-	uint data_cnt;
-	uint data_sum;
-	bool data_hit;
-	int  i;
-	int  gain_flg = 0;
-	struct chenge_gain_table table[GAIN_NUM];
-	mm_segment_t fs;
-
-	fs = get_fs();
-	set_fs(get_ds());
-
-	filp = filp_open( GAIN_FILEPTTH, O_RDONLY, 0);
-	if ( IS_ERR(filp) ) {
-		pr_err("%s : file open error [%s]\n", __func__, GAIN_FILEPTTH);
-	} else {
-		pr_debug("%s : file open successed\n", __func__);
-		for (i=0; i<GAIN_NUM; i++) {
-			memset(type ,0x00, sizeof(type));
-			memset(data ,0x00, sizeof(data));
-			type_cnt = 0;
-			data_cnt = 0;
-			data_sum = 0;
-			/* get type */
-			data_hit = get_data( filp, type, &type_cnt );
-			/* get data */
-			if ( data_hit ) {
-				data_hit = get_data( filp, data, &data_cnt );
-			}
-			/* check data */
-			if ( data_hit ) {
-				if ( chg_hex_data( data, data_cnt, &data_sum ) ) {
-					if ( strncmp( type, "RCV_SEL", type_cnt ) == 0 ) {
-						gain_flg |= GAIN_RCV_SEL;
-						table[i].gain_data = &kc_rcv_sel;
-						table[i].tmp_data  = data_sum;
-					} else if ( strncmp( type, "RCV_GAIN", type_cnt ) == 0 ) {
-						gain_flg |= GAIN_RCV_GAIN;
-						table[i].gain_data = &kc_rcv_gain;
-						table[i].tmp_data  = data_sum;
-					} else {
-						pr_err("%s : type error [%s]\n", __func__, type);
-					}
-				}
-			}
-		}
-		/* set data */
-		if ( gain_flg == GAIN_ALL ) {
-			for (i = 0; i < GAIN_NUM; i++) {
-				*(table[i].gain_data) = table[i].tmp_data;
-			}
-		} else {
-			pr_err("%s : gain is not enough. gain_flg[0x%x]\n", __func__, gain_flg);
-		}
-		filp_close(filp, NULL);
-	}
-	set_fs( fs );
-}
-#endif
 static inline int param_is_mask(int p)
 {
 	return ((p >= SNDRV_PCM_HW_PARAM_FIRST_MASK) &&
@@ -439,27 +296,11 @@ static int msm8226_mclk_event(struct snd_soc_dapm_widget *w,
 #ifdef CONFIG_KYOCERA_MSND
 static void kc_msm8226_ext_rcv_power_amp_enable(u32 enable)
 {
-	if ( !kc_setup_gain ) {
-		kc_read_gain_data();
-		kc_setup_gain = true;
-	}
-	pr_debug("%s: kc_rcv_sel  = [0x%x]\n",__func__, kc_rcv_sel);
-	pr_debug("%s: kc_rcv_gain = [0x%x]\n",__func__, kc_rcv_gain);
 	if (enable) {
-		if (kc_rcv_sel) {
-			pr_debug("%s: Enabled RCV_SEL (MSM8926 GPIO[%d])\n",__func__, kc_ext_rcv_amp_gpio_sel);
-			gpio_direction_output(kc_ext_rcv_amp_gpio_sel, 1);
-		} else {
-			pr_debug("%s: Disabled RCV_SEL (MSM8926 GPIO[%d])\n",__func__, kc_ext_rcv_amp_gpio_sel);
-			gpio_direction_output(kc_ext_rcv_amp_gpio_sel, 0);
-		}
-		if (kc_rcv_gain) {
-			pr_debug("%s: Enabled RCV_GAIN(MSM8926 GPIO[%d])\n",__func__, kc_ext_rcv_amp_gpio_gain);
-			gpio_direction_output(kc_ext_rcv_amp_gpio_gain, 1);
-		} else {
-			pr_debug("%s: Disabled RCV_GAIN(MSM8926 GPIO[%d])\n",__func__, kc_ext_rcv_amp_gpio_gain);
-			gpio_direction_output(kc_ext_rcv_amp_gpio_gain, 0);
-		}
+		pr_debug("%s: Enabled RCV_SEL (MSM8926 GPIO[%d])\n",__func__, kc_ext_rcv_amp_gpio_sel);
+		gpio_direction_output(kc_ext_rcv_amp_gpio_sel, 1);
+		pr_debug("%s: Enabled RCV_GAIN(MSM8926 GPIO[%d])\n",__func__, kc_ext_rcv_amp_gpio_gain);
+		gpio_direction_output(kc_ext_rcv_amp_gpio_gain, 1);
 		pr_debug("%s: Enabled RCV_ON  (MSM8926 GPIO[%d])\n",__func__, kc_ext_rcv_amp_gpio_on);
 		gpio_direction_output(kc_ext_rcv_amp_gpio_on, 1);
 		pr_debug("%s: Delay 15ms\n",__func__);
@@ -822,7 +663,7 @@ static const struct soc_enum msm_enum[] = {
 	SOC_ENUM_SINGLE_EXT(4, slim0_tx_ch_text),
 };
 
-static const char *const btsco_rate_text[] = {"8000", "16000"};
+static const char *const btsco_rate_text[] = {"BTSCO_RATE_8KHZ", "BTSCO_RATE_16KHZ"};
 static const struct soc_enum msm_btsco_enum[] = {
 	SOC_ENUM_SINGLE_EXT(2, btsco_rate_text),
 };
@@ -928,10 +769,10 @@ static int msm_btsco_rate_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
 {
 	switch (ucontrol->value.integer.value[0]) {
-	case 8000:
+	case 0:
 		msm_btsco_rate = BTSCO_RATE_8KHZ;
 		break;
-	case 16000:
+	case 1:
 		msm_btsco_rate = BTSCO_RATE_16KHZ;
 		break;
 	default:
@@ -1514,7 +1355,6 @@ void *def_tapan_mbhc_cal(void)
 	btn_low[0] = -50;
 #ifdef CONFIG_KYOCERA_MSND
 	btn_high[0] = 120;
-	/* multi button not support */
 	btn_low[1] = 0;
 	btn_high[1] = 0;
 	btn_low[2] = 0;
@@ -1910,9 +1750,9 @@ static struct snd_soc_dai_link msm8226_common_dai[] = {
 	},
 	/* LSM FE */
 	{
-		.name = "Listen Audio Service",
-		.stream_name = "Listen Audio Service",
-		.cpu_dai_name = "LSM",
+		.name = "Listen 1 Audio Service",
+		.stream_name = "Listen 1 Audio Service",
+		.cpu_dai_name = "LSM1",
 		.platform_name = "msm-lsm-client",
 		.dynamic = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
@@ -1938,6 +1778,157 @@ static struct snd_soc_dai_link msm8226_common_dai[] = {
 		.ignore_pmdown_time = 1,
 		 /* this dainlink has playback support */
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA8,
+	},
+	{
+		.name = "Listen 2 Audio Service",
+		.stream_name = "Listen 2 Audio Service",
+		.cpu_dai_name = "LSM2",
+		.platform_name = "msm-lsm-client",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST },
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.be_id = MSM_FRONTEND_DAI_LSM2,
+	},
+	{
+		.name = "Listen 3 Audio Service",
+		.stream_name = "Listen 3 Audio Service",
+		.cpu_dai_name = "LSM3",
+		.platform_name = "msm-lsm-client",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST },
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.be_id = MSM_FRONTEND_DAI_LSM3,
+	},
+	{
+		.name = "Listen 4 Audio Service",
+		.stream_name = "Listen 4 Audio Service",
+		.cpu_dai_name = "LSM4",
+		.platform_name = "msm-lsm-client",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST },
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.be_id = MSM_FRONTEND_DAI_LSM4,
+	},
+	{
+		.name = "Listen 5 Audio Service",
+		.stream_name = "Listen 5 Audio Service",
+		.cpu_dai_name = "LSM5",
+		.platform_name = "msm-lsm-client",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST },
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.be_id = MSM_FRONTEND_DAI_LSM5,
+	},
+	{
+		.name = "Listen 6 Audio Service",
+		.stream_name = "Listen 6 Audio Service",
+		.cpu_dai_name = "LSM6",
+		.platform_name = "msm-lsm-client",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST },
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.be_id = MSM_FRONTEND_DAI_LSM6,
+	},
+	{
+		.name = "Listen 7 Audio Service",
+		.stream_name = "Listen 7 Audio Service",
+		.cpu_dai_name = "LSM7",
+		.platform_name = "msm-lsm-client",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST },
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.be_id = MSM_FRONTEND_DAI_LSM7,
+	},
+	{
+		.name = "Listen 8 Audio Service",
+		.stream_name = "Listen 8 Audio Service",
+		.cpu_dai_name = "LSM8",
+		.platform_name = "msm-lsm-client",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST },
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.be_id = MSM_FRONTEND_DAI_LSM8,
+	},
+	{/* hw:x,28 */
+		.name = "INT_HFP_BT Hostless",
+		.stream_name = "INT_HFP_BT Hostless",
+		.cpu_dai_name   = "INT_HFP_BT_HOSTLESS",
+		.platform_name  = "msm-pcm-hostless",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		/* this dai link has playback support */
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+	},
+	{/* hw:x,29 */
+		.name = "MSM8226 HFP TX",
+		.stream_name = "MultiMedia6",
+		.cpu_dai_name = "MultiMedia6",
+		.platform_name  = "msm-pcm-loopback",
+		.dynamic = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST},
+		.ignore_suspend = 1,
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		/* this dai link has playback support */
+		.ignore_pmdown_time = 1,
+		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA6,
+	},
+	{/* hw:x,30 */
+		.name = "VoWLAN",
+		.stream_name = "VoWLAN",
+		.cpu_dai_name   = "VoWLAN",
+		.platform_name  = "msm-pcm-voice",
+		.dynamic = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			    SND_SOC_DPCM_TRIGGER_POST},
+		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.codec_name = "snd-soc-dummy",
+		.be_id = MSM_FRONTEND_DAI_VOWLAN,
 	},
 	/* Backend BT/FM DAI Links */
 	{
@@ -2546,6 +2537,8 @@ static __devinit int msm8226_asoc_machine_probe(struct platform_device *pdev)
 	struct msm8226_asoc_mach_data *pdata;
 	int ret;
 	const char *auxpcm_pri_gpio_set = NULL;
+	const char *mbhc_audio_jack_type = NULL;
+	size_t n = strlen("4-pole-jack");
 
 	if (!pdev->dev.of_node) {
 		dev_err(&pdev->dev, "No platform supplied from device tree\n");
@@ -2610,6 +2603,35 @@ static __devinit int msm8226_asoc_machine_probe(struct platform_device *pdev)
 
 	mbhc_cfg.gpio_level_insert = of_property_read_bool(pdev->dev.of_node,
 					"qcom,headset-jack-type-NC");
+
+	ret = of_property_read_string(pdev->dev.of_node,
+		"qcom,mbhc-audio-jack-type", &mbhc_audio_jack_type);
+	if (ret) {
+		dev_dbg(&pdev->dev, "Looking up %s property in node %s failed",
+			"qcom,mbhc-audio-jack-type",
+			pdev->dev.of_node->full_name);
+		mbhc_cfg.hw_jack_type = FOUR_POLE_JACK;
+		mbhc_cfg.enable_anc_mic_detect = false;
+		dev_dbg(&pdev->dev, "Jack type properties set to default");
+	} else {
+		if (!strncmp(mbhc_audio_jack_type, "4-pole-jack", n)) {
+			mbhc_cfg.hw_jack_type = FOUR_POLE_JACK;
+			mbhc_cfg.enable_anc_mic_detect = false;
+			dev_dbg(&pdev->dev, "This hardware has 4 pole jack");
+		} else if (!strncmp(mbhc_audio_jack_type, "5-pole-jack", n)) {
+			mbhc_cfg.hw_jack_type = FIVE_POLE_JACK;
+			mbhc_cfg.enable_anc_mic_detect = true;
+			dev_dbg(&pdev->dev, "This hardware has 5 pole jack");
+		} else if (!strncmp(mbhc_audio_jack_type, "6-pole-jack", n)) {
+			mbhc_cfg.hw_jack_type = SIX_POLE_JACK;
+			mbhc_cfg.enable_anc_mic_detect = true;
+			dev_dbg(&pdev->dev, "This hardware has 6 pole jack");
+		} else {
+			mbhc_cfg.hw_jack_type = FOUR_POLE_JACK;
+			mbhc_cfg.enable_anc_mic_detect = false;
+			dev_dbg(&pdev->dev, "Unknown value, hence setting to default");
+		}
+	}
 
 	ret = snd_soc_register_card(card);
 	if (ret == -EPROBE_DEFER)

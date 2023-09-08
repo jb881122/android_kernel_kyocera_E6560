@@ -40,5 +40,6 @@ typedef struct dnand_data_type_struct
 
 int32_t kdnand_id_read( uint32_t id_no, uint32_t offset, uint8_t *pbuf, uint32_t size );
 int32_t kdnand_id_write( uint32_t id_no, uint32_t offset, uint8_t *pbuf, uint32_t size );
+void kdnand_emmc_refresh(void);
 
 #endif

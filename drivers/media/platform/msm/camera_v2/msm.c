@@ -9,11 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-/*
- * This software is contributed or developed by KYOCERA Corporation.
- * (C) 2014 KYOCERA Corporation
- */
-/*=============================================================================*/
 
 #include <linux/of.h>
 #include <linux/module.h>
@@ -708,7 +703,10 @@ int msm_post_event(struct v4l2_event *event, int timeout)
 				__func__, __LINE__);
 		return -EIO;
 	}
+
+	/*re-init wait_complete */
 	INIT_COMPLETION(cmd_ack->wait_complete);
+
 	v4l2_event_queue(vdev, event);
 
 	if (timeout < 0) {
@@ -1078,6 +1076,7 @@ probe_end:
 
 static const struct of_device_id msm_dt_match[] = {
 	{.compatible = "qcom,msm-cam"},
+	{}
 }
 
 MODULE_DEVICE_TABLE(of, msm_dt_match);

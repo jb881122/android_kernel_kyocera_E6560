@@ -1,6 +1,7 @@
 /*
  * This software is contributed or developed by KYOCERA Corporation.
  * (C) 2014 KYOCERA Corporation
+ * (C) 2015 KYOCERA Corporation
  */
 /* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
@@ -87,6 +88,12 @@ enum dsi_panel_bl_ctrl {
 	BL_WLED,
 	BL_DCS_CMD,
 	UNKNOWN_CTRL,
+};
+
+enum dsi_panel_status_mode {
+	ESD_BTA,
+	ESD_REG,
+	ESD_MAX,
 };
 
 enum dsi_ctrl_op_mode {
@@ -237,6 +244,7 @@ enum {
 
 #define DSI_EV_PLL_UNLOCKED		0x0001
 #define DSI_EV_MDP_FIFO_UNDERFLOW	0x0002
+#define DSI_EV_DSI_FIFO_EMPTY		0x0004
 #define DSI_EV_MDP_BUSY_RELEASE		0x80000000
 
 struct mdss_dsi_ctrl_pdata {
@@ -246,6 +254,7 @@ struct mdss_dsi_ctrl_pdata {
 	int (*partial_update_fnc) (struct mdss_panel_data *pdata);
 	int (*check_status) (struct mdss_dsi_ctrl_pdata *pdata);
 	int (*cmdlist_commit)(struct mdss_dsi_ctrl_pdata *ctrl, int from_mdp);
+	void (*switch_mode) (struct mdss_panel_data *pdata, int mode);
 	struct mdss_panel_data panel_data;
 	unsigned char *ctrl_base;
 	struct dss_io_data ctrl_io;
@@ -279,6 +288,7 @@ struct mdss_dsi_ctrl_pdata {
 	int bklt_max;
 	int new_fps;
 	int pwm_enabled;
+	bool dmap_iommu_map;
 	struct pwm_device *pwm_bl;
 	struct dsi_drv_cm_data shared_pdata;
 	u32 pclk_rate;
@@ -290,6 +300,11 @@ struct mdss_dsi_ctrl_pdata {
 
 	struct dsi_panel_cmds on_cmds;
 	struct dsi_panel_cmds off_cmds;
+	struct dsi_panel_cmds status_cmds;
+	u32 status_value;
+
+	struct dsi_panel_cmds video2cmd;
+	struct dsi_panel_cmds cmd2video;
 
 	struct dcs_cmd_list cmdlist;
 	struct completion dma_comp;
@@ -306,40 +321,14 @@ struct mdss_dsi_ctrl_pdata {
 
 	struct dsi_buf tx_buf;
 	struct dsi_buf rx_buf;
+	struct dsi_buf status_buf;
+	int status_mode;
 };
 
-#define REG_INVERT_OFF         0x20
-#define REG_INVERT_ON          0x21
-#define REG_COLOR_ADJ_ENABLE   0x70
-#define REG_COLOR_ADJ1         0x74
-#define REG_COLOR_ADJ2         0x75
-#define REG_COLOR_ADJ3         0x76
-
-#define DATA_COLOR_ADJ_RED     0x01
-#define DATA_COLOR_ADJ_YELLOW  0x02
-#define DATA_COLOR_ADJ_GREEN   0x03
-#define DATA_COLOR_ADJ_CYAN    0x04
-#define DATA_COLOR_ADJ_BLUE    0x05
-#define DATA_COLOR_ADJ_MAGENTA 0x06
-#define DATA_COLOR_ADJ_ALL     0x07
-
-enum {
-	COLOR_ADJ_1,
-	COLOR_ADJ_2,
-	COLOR_ADJ_3,
-	COLOR_ADJ_NUM
-};
-
-struct color_adjustment_internal_parameter {
-	int invert;
-	unsigned char color[COLOR_ADJ_NUM];
-	unsigned char data[COLOR_ADJ_NUM];
-};
-
-enum {
-	PANEL_TYPE_ERROR = 0,
-	PANEL_TYPE_G = 1, 
-	PANEL_TYPE_T = 2  
+struct dsi_status_data {
+	struct notifier_block fb_notifier;
+	struct delayed_work check_status;
+	struct msm_fb_data_type *mfd;
 };
 
 int dsi_panel_device_register(struct device_node *pan_node,
@@ -370,7 +359,7 @@ void mdss_dsi_sw_reset(struct mdss_panel_data *pdata);
 irqreturn_t mdss_dsi_isr(int irq, void *ptr);
 void mdss_dsi_irq_handler_config(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 
-void mipi_set_tx_power_mode(int mode, struct mdss_panel_data *pdata);
+void mdss_dsi_set_tx_power_mode(int mode, struct mdss_panel_data *pdata);
 int mdss_dsi_clk_div_config(struct mdss_panel_info *panel_info,
 			    int frame_rate);
 int mdss_dsi_clk_init(struct platform_device *pdev,
@@ -392,15 +381,17 @@ void mdss_dsi_wait4video_done(struct mdss_dsi_ctrl_pdata *ctrl);
 int mdss_dsi_cmdlist_commit(struct mdss_dsi_ctrl_pdata *ctrl, int from_mdp);
 void mdss_dsi_cmdlist_kickoff(int intf);
 int mdss_dsi_bta_status_check(struct mdss_dsi_ctrl_pdata *ctrl);
+int mdss_dsi_reg_status_check(struct mdss_dsi_ctrl_pdata *ctrl);
 bool __mdss_dsi_clk_enabled(struct mdss_dsi_ctrl_pdata *ctrl, u8 clk_type);
 
 int mdss_dsi_panel_init(struct device_node *node,
 		struct mdss_dsi_ctrl_pdata *ctrl_pdata,
 		bool cmd_cfg_cont_splash);
-int mdss_dsi_panel_get_type(void);
-void mdss_dsi_panel_set_type(int type);
-void disp_ext_invert_ctrl_direct(struct mdss_panel_data *pdata, int data);
-void disp_ext_color_adjustment_ctrl_direct(struct mdss_panel_data *pdata, int enable, int red, int green, int blue);
+int mdss_panel_get_dst_fmt(u32 bpp, char mipi_mode, u32 pixel_packing,
+				char *dst_format);
+
+int mdss_dsi_register_recovery_handler(struct mdss_dsi_ctrl_pdata *ctrl,
+		struct mdss_panel_recovery *recovery);
 
 static inline bool mdss_dsi_broadcast_mode_enabled(void)
 {

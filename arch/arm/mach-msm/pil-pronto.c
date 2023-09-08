@@ -1,8 +1,5 @@
 /* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
- * This software is contributed or developed by KYOCERA Corporation.
- * (C) 2014 KYOCERA Corporation
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
  * only version 2 as published by the Free Software Foundation.
@@ -11,6 +8,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ */
+/*
+ * This software is contributed or developed by KYOCERA Corporation.
+ * (C) 2016 KYOCERA Corporation
  */
 
 #include <linux/kernel.h>
@@ -64,6 +65,9 @@
 #define PRONTO_PMU_CCPU_CTL_HIGH_IVT			BIT(0)
 
 #define PRONTO_PMU_CCPU_BOOT_REMAP_ADDR			0x2004
+
+#define PRONTO_PMU_SPARE				0x1088
+#define PRONTO_PMU_SPARE_SSR_BIT			BIT(23)
 
 #define CLK_CTL_WCNSS_RESTART_BIT			BIT(0)
 
@@ -395,7 +399,15 @@ static int wcnss_powerup(const struct subsys_desc *subsys)
 	struct pronto_data *drv = subsys_to_drv(subsys);
 	struct platform_device *pdev = wcnss_get_platform_device();
 	struct wcnss_wlan_config *pwlanconfig = wcnss_get_wlan_config();
-	int    ret = -1;
+	void __iomem *base = drv->base;
+	u32 reg;
+	int ret = -1;
+
+	if (base) {
+		reg = readl_relaxed(base + PRONTO_PMU_SPARE);
+		reg |= PRONTO_PMU_SPARE_SSR_BIT;
+		writel_relaxed(reg, base + PRONTO_PMU_SPARE);
+	}
 
 	if (pdev && pwlanconfig)
 		ret = wcnss_wlan_power(&pdev->dev, pwlanconfig,

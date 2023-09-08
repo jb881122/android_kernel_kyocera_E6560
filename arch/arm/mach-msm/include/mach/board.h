@@ -193,7 +193,8 @@ struct msm_gpio_set_tbl {
 };
 
 struct msm_camera_gpio_num_info {
-	uint16_t gpio_num[7];
+	uint16_t gpio_num[10];
+	uint8_t valid[10];
 };
 
 struct msm_camera_gpio_conf {
@@ -686,6 +687,8 @@ void msm_snddev_tx_route_deconfig(void);
 extern phys_addr_t msm_shared_ram_phys; /* defined in arch/arm/mach-msm/io.c */
 
 int oem_is_off_charge(void);
+int oem_is_recoverymode(void);
+int oem_is_fotamode(void);
 int oem_is_kcfactory(void);
 
 

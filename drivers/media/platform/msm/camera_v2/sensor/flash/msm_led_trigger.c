@@ -10,11 +10,6 @@
  * GNU General Public License for more details.
  *
  */
-/* 
- * This software is contributed or developed by KYOCERA Corporation.
- * (C) 2013 KYOCERA Corporation
- */
-/*=============================================================================*/
 
 #define pr_fmt(fmt) "%s:%d " fmt, __func__, __LINE__
 

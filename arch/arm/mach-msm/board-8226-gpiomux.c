@@ -2,7 +2,7 @@
  * This software is contributed or developed by KYOCERA Corporation.
  * (C) 2014 KYOCERA Corporation
  */
-/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -61,6 +61,44 @@ static struct msm_gpiomux_config msm_hsic_configs[] = {
 	},
 };
 #endif
+
+#ifdef QUALCOMM_ORIGINAL_FEATURE
+static struct gpiomux_setting smsc_hub_act_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_8MA,
+	.pull = GPIOMUX_PULL_NONE,
+};
+
+static struct gpiomux_setting smsc_hub_susp_cfg = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_NONE,
+};
+
+static struct msm_gpiomux_config smsc_hub_configs[] = {
+	{
+		.gpio = 114, /* reset_n */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &smsc_hub_act_cfg,
+			[GPIOMUX_SUSPENDED] = &smsc_hub_susp_cfg,
+		},
+	},
+	{
+		.gpio = 8, /* clk_en */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &smsc_hub_act_cfg,
+			[GPIOMUX_SUSPENDED] = &smsc_hub_susp_cfg,
+		},
+	},
+	{
+		.gpio = 9, /* int_n */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &smsc_hub_act_cfg,
+			[GPIOMUX_SUSPENDED] = &smsc_hub_susp_cfg,
+		},
+	},
+};
+#endif /* QUALCOMM_ORIGINAL_FEATURE */
 
 #define KS8851_IRQ_GPIO 115
 
@@ -122,7 +160,7 @@ static struct gpiomux_setting gpio_keys_suspend = {
 };
 
 #ifdef QUALCOMM_ORIGINAL_FEATURE
-static struct gpiomux_setting gpio_spi_config = {
+static struct gpiomux_setting gpio_spi_act_config = {
 	.func = GPIOMUX_FUNC_1,
 	.drv = GPIOMUX_DRV_8MA,
 	.pull = GPIOMUX_PULL_NONE,
@@ -136,12 +174,6 @@ static struct gpiomux_setting gpio_spi_cs_act_config = {
 static struct gpiomux_setting gpio_spi_susp_config = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_2MA,
-	.pull = GPIOMUX_PULL_DOWN,
-};
-
-static struct gpiomux_setting gpio_spi_cs_eth_config = {
-	.func = GPIOMUX_FUNC_4,
-	.drv = GPIOMUX_DRV_6MA,
 	.pull = GPIOMUX_PULL_DOWN,
 };
 
@@ -425,6 +457,18 @@ static struct msm_gpiomux_config msm_blsp_configs[] __initdata = {
 		},
 	},
 };
+
+#ifdef QUALCOMM_ORIGINAL_FEATURE
+static struct msm_gpiomux_config msm_blsp_spi_cs_config[] __initdata = {
+	{
+		.gpio      = 2,		/* BLSP1 QUP1 SPI_CS1 */
+		.settings = {
+			[GPIOMUX_ACTIVE] = &gpio_spi_cs_act_config,
+			[GPIOMUX_SUSPENDED] = &gpio_spi_susp_config,
+		},
+	},
+};
+#endif /* QUALCOMM_ORIGINAL_FEATURE */
 
 #ifdef QUALCOMM_ORIGINAL_FEATURE
 static struct msm_gpiomux_config msm_synaptics_configs[] __initdata = {
@@ -1037,12 +1081,16 @@ void __init msm8226_init_gpiomux(void)
 			ARRAY_SIZE(msm_keypad_configs));
 	msm_gpiomux_install(msm_blsp_configs, ARRAY_SIZE(msm_blsp_configs));
 #ifdef QUALCOMM_ORIGINAL_FEATURE
-	if (of_board_is_qrd())
-		msm_gpiomux_install(msm_qrd_blsp_configs,
-			ARRAY_SIZE(msm_qrd_blsp_configs));
-	else
+	if (of_board_is_skuf())
+		msm_gpiomux_install(msm_skuf_blsp_configs,
+			ARRAY_SIZE(msm_skuf_blsp_configs));
+	else {
 		msm_gpiomux_install(msm_blsp_configs,
 			ARRAY_SIZE(msm_blsp_configs));
+		if (machine_is_msm8226())
+			msm_gpiomux_install(msm_blsp_spi_cs_config,
+				ARRAY_SIZE(msm_blsp_spi_cs_config));
+	}
 #endif /* QUALCOMM_ORIGINAL_FEATURE */
 
 	msm_gpiomux_install(wcnss_5wire_interface,
@@ -1050,16 +1098,16 @@ void __init msm8226_init_gpiomux(void)
 
 	msm_gpiomux_install(&sd_card_det, 1);
 #ifdef QUALCOMM_ORIGINAL_FEATURE
-	if (of_board_is_qrd())
-		msm_gpiomux_install(msm_qrd_goodix_configs,
-				ARRAY_SIZE(msm_qrd_goodix_configs));
+	if (of_board_is_skuf())
+		msm_gpiomux_install(msm_skuf_goodix_configs,
+				ARRAY_SIZE(msm_skuf_goodix_configs));
 	else
 		msm_gpiomux_install(msm_synaptics_configs,
 				ARRAY_SIZE(msm_synaptics_configs));
 
-	if (of_board_is_qrd())
-		msm_gpiomux_install(msm_qrd_nfc_configs,
-				ARRAY_SIZE(msm_qrd_nfc_configs));
+	if (of_board_is_skuf())
+		msm_gpiomux_install(msm_skuf_nfc_configs,
+				ARRAY_SIZE(msm_skuf_nfc_configs));
 #endif /* QUALCOMM_ORIGINAL_FEATURE */
 
 	msm_gpiomux_install_nowrite(msm_lcd_configs,
@@ -1067,6 +1115,10 @@ void __init msm8226_init_gpiomux(void)
 
 	msm_gpiomux_install(msm_sensor_configs, ARRAY_SIZE(msm_sensor_configs));
 #ifdef QUALCOMM_ORIGINAL_FEATURE
+	if (of_board_is_skuf())
+		msm_gpiomux_install(msm_sensor_configs_skuf_plus,
+			ARRAY_SIZE(msm_sensor_configs_skuf_plus));
+
 	msm_gpiomux_install(msm_auxpcm_configs,
 			ARRAY_SIZE(msm_auxpcm_configs));
 
@@ -1088,6 +1140,11 @@ void __init msm8226_init_gpiomux(void)
 	}
 	msm_gpiomux_install(msm_hsic_configs, ARRAY_SIZE(msm_hsic_configs));
 #endif
+#ifdef QUALCOMM_ORIGINAL_FEATURE
+	if (machine_is_msm8926() && of_board_is_mtp())
+		msm_gpiomux_install(smsc_hub_configs,
+			ARRAY_SIZE(smsc_hub_configs));
+#endif /* QUALCOMM_ORIGINAL_FEATURE */
 }
 
 static void wcnss_switch_to_gpio(void)

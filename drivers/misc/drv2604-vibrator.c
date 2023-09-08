@@ -625,7 +625,7 @@ static void drv2604_enable(struct timed_output_dev *dev, int value)
 		hrtimer_cancel(&drv2604_data.vib_standby_timer);
 		if (value < VIB_TIME_MIN)
 		{
-			value = VIB_TIME_MIN;
+
 			drv2604_data.add_time_flag = VIB_ADD_TIME_FLAG_ON;
 			VIB_DEBUG_LOG(KERN_INFO, "set add_time_flag=%d\n", drv2604_data.add_time_flag);
 		}

@@ -9,10 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-/*
- * This software is contributed or developed by KYOCERA Corporation.
- * (C) 2014 KYOCERA Corporation
- */
 #ifndef WCD9306_H
 #define WCD9306_H
 

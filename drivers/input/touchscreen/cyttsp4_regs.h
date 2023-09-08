@@ -41,6 +41,9 @@
 #define CY_FW_FILE_02_NAME			"cyttsp4_fw_02.bin"
 #define CY_CFG_FILE_01_NAME			"cyttsp4_cfg_01.bin"
 
+#define CY_DEVPARAM_FW_FILE_NAME	"cyttsp4_devparam_fw.bin"
+#define CY_DEVPARAM_CFG_FILE_NAME	"cyttsp4_devparam_cfg.bin"
+
 #define CY_DEFAULT_ADAP_MAX_XFER	512
 #define CY_ADAP_MIN_XFER		140
 

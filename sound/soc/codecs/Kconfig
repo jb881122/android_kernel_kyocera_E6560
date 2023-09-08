@@ -297,6 +297,7 @@ config SND_SOC_WCD9320
 
 config SND_SOC_WCD9306
         tristate
+	select SND_HWDEP
 
 config SND_SOC_MSM8X10_WCD
 	tristate

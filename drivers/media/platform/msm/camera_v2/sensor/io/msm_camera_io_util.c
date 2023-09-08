@@ -9,11 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-/*
- * This software is contributed or developed by KYOCERA Corporation.
- * (C)2014 KYOCERA Corporation
- */
-/*=============================================================================*/
 
 #include <linux/delay.h>
 #include <linux/clk.h>
@@ -110,6 +105,17 @@ void msm_camera_io_memcpy(void __iomem *dest_addr,
 	CDBG("%s: %p %p %d\n", __func__, dest_addr, src_addr, len);
 	msm_camera_io_memcpy_toio(dest_addr, src_addr, len / 4);
 	msm_camera_io_dump(dest_addr, len);
+}
+
+void msm_camera_io_memcpy_mb(void __iomem *dest_addr,
+	void __iomem *src_addr, u32 len)
+{
+	int i;
+	u32 *d = (u32 *) dest_addr;
+	u32 *s = (u32 *) src_addr;
+
+	for (i = 0; i < (len / 4); i++)
+		msm_camera_io_w_mb(*s++, d++);
 }
 
 int msm_cam_clk_sel_src(struct device *dev, struct msm_cam_clk_info *clk_info,

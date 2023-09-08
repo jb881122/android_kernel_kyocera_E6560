@@ -145,6 +145,8 @@ static int mmc_decode_csd(struct mmc_card *card)
 			csd->erase_size = UNSTUFF_BITS(resp, 39, 7) + 1;
 			csd->erase_size <<= csd->write_blkbits - 9;
 		}
+		csd->perm_write_protect = UNSTUFF_BITS(resp, 13, 1);
+		csd->tmp_write_protect  = UNSTUFF_BITS(resp, 12, 1);
 		break;
 	case 1:
 		/*
@@ -179,6 +181,8 @@ static int mmc_decode_csd(struct mmc_card *card)
 		csd->write_blkbits = 9;
 		csd->write_partial = 0;
 		csd->erase_size = 1;
+		csd->perm_write_protect = UNSTUFF_BITS(resp, 13, 1);
+		csd->tmp_write_protect  = UNSTUFF_BITS(resp, 12, 1);
 		break;
 	default:
 		pr_err("%s: unrecognised CSD structure version %d\n",
@@ -976,7 +980,11 @@ int mmc_sd_setup_card(struct mmc_host *host, struct mmc_card *card,
 			ro = host->ops->get_ro(host);
 			mmc_host_clk_release(card->host);
 		}
-
+		if ( card->csd.perm_write_protect || card->csd.tmp_write_protect )
+		{
+			ro = 1;
+			printk("SD card perm_wp:%d tmp_wp:%d\n", card->csd.perm_write_protect, card->csd.tmp_write_protect);
+		}
 		if (ro < 0) {
 			pr_warning("%s: host does not "
 				"support reading read-only "
@@ -1058,6 +1066,7 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		err = mmc_send_relative_addr(host, &card->rca);
 		if (err)
 			return err;
+		host->card = card;
 	}
 
 	if (!oldcard) {
@@ -1127,12 +1136,13 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		}
 	}
 
-	host->card = card;
 	return 0;
 
 free_card:
-	if (!oldcard)
+	if (!oldcard) {
+		host->card = NULL;
 		mmc_remove_card(card);
+	}
 
 	return err;
 }
@@ -1145,11 +1155,11 @@ static void mmc_sd_remove(struct mmc_host *host)
 	BUG_ON(!host);
 	BUG_ON(!host->card);
 
+	mmc_exit_clk_scaling(host);
 	mmc_remove_card(host->card);
 
 	mmc_claim_host(host);
 	host->card = NULL;
-	mmc_exit_clk_scaling(host);
 	mmc_release_host(host);
 }
 
@@ -1199,7 +1209,6 @@ static void mmc_sd_detect(struct mmc_host *host)
 	err = _mmc_detect_card_removed(host);
 #endif
 	mmc_release_host(host);
-
 	if(!err && mmc_eject_status) {
 		mmc_card_set_removed(host->card);
 		err = ETIMEDOUT;
@@ -1431,7 +1440,11 @@ int mmc_attach_sd(struct mmc_host *host)
 	 */
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
 	retries = 5;
-	while (retries) {
+	/*
+	 * Some bad cards may take a long time to init, give preference to
+	 * suspend in those cases.
+	 */
+	while (retries && !host->rescan_disable) {
 		err = mmc_sd_init_card(host, host->ocr, NULL);
 		if (err) {
 			retries--;
@@ -1449,6 +1462,9 @@ int mmc_attach_sd(struct mmc_host *host)
 		       mmc_hostname(host), err);
 		goto err;
 	}
+
+	if (host->rescan_disable)
+		goto err;
 #else
 	err = mmc_sd_init_card(host, host->ocr, NULL);
 	if (err)
@@ -1463,7 +1479,9 @@ int mmc_attach_sd(struct mmc_host *host)
 
 	mmc_init_clk_scaling(host);
 
+	/* success mmc_attach_sd() clears the retry count */
 	mmc_rescan_count = 0;
+
 
 	return 0;
 
@@ -1474,11 +1492,12 @@ remove_card:
 	mmc_claim_host(host);
 err:
 	mmc_detach_bus(host);
-
-	pr_err("%s: error %d whilst initialising SD card\n",
-		mmc_hostname(host), err);
+	if (err)
+		pr_err("%s: error %d whilst initialising SD card: rescan: %d\n",
+		       mmc_hostname(host), err, host->rescan_disable);
 
 	if(mmc_rescan_count < MMC_RESCAN_RETRY_MAX) {
+		/* do not retry the card has not been inserted physically  */
 		if(!mmc_eject_status){
 			pr_err("%s: Rescan of the SD card to run after 500ms. retry_count = %d\n",
 				mmc_hostname(host), mmc_rescan_count);
@@ -1488,6 +1507,7 @@ err:
 	}
 	else {
 		pr_err("%s: SD_RESCAN retry-over. retry_count = %d\n", mmc_hostname(host),mmc_rescan_count);
+		/* Retry over occurs clear the retry count */
 		mmc_rescan_count = 0;
 		sd_failure_flag = SD_FAILURE_FLAG_ON;
 	}

@@ -1,7 +1,7 @@
 /*
  * Monkey Device Module -- Provides a monkey support
  * This software is contributed or developed by KYOCERA Corporation.
- * (C) 2014 KYOCERA Corporation
+ * (C) 2014-2015 KYOCERA Corporation
  */
 
 #include <linux/module.h>
@@ -66,84 +66,84 @@ long monkey_device_ioctl(
 	int ret = 0;
 
 	DBG_KERNEL(KERN_INFO "monkey_device_ioctl[0x%x]\n", cmd);
-	
+
 	spin_lock(&g_monkey_lock);
-            
+
 	switch (cmd) {
-		
+
 	case MONKEY_DEVICE_IOCTL_SET_MAGIC:
 		memcpy( g_monkey_magic, MONKEY_DEVICE_MAGCI_VALUE, MONKEY_DEVICE_MAGIC_SIZE );
 		D_DUMP_BUFFER("SetMagic: ", MONKEY_DEVICE_MAGIC_SIZE, g_monkey_magic);
 		break;
-		
+
 	case MONKEY_DEVICE_IOCTL_RESET_MAGIC:
 		memset( g_monkey_magic, 0x00, MONKEY_DEVICE_MAGIC_SIZE);
 		D_DUMP_BUFFER("ResetMagic: ", MONKEY_DEVICE_MAGIC_SIZE, g_monkey_magic);
 		break;
-		
+
 	case MONKEY_DEVICE_IOCTL_GET_MAGIC:
 		D_DUMP_BUFFER("GetMagic: ", MONKEY_DEVICE_MAGIC_SIZE, g_monkey_magic);
 		if( copy_to_user( (void *)arg, (void *)g_monkey_magic , MONKEY_DEVICE_MAGIC_SIZE)) {
 			ret = -1;
 		}
 		break;
-		
+
 	case MONKEY_DEVICE_IOCTL_SET_STOP:
 		*g_monkey_stop = (int)arg;
 		DBG_KERNEL(KERN_INFO "Set stop [%d]\n", *g_monkey_stop);
 		break;
-		
+
 	case MONKEY_DEVICE_IOCTL_GET_STOP:
 		if( copy_to_user( (void *)arg, (void *)g_monkey_stop , MONKEY_DEVICE_STOP_SIZE)) {
 			ret = -1;
 		}
 		DBG_KERNEL(KERN_INFO "Get stop [%d]\n", *g_monkey_stop);
 		break;
-		
+
 	case MONKEY_DEVICE_IOCTL_SET_CYCLE:
 		*g_monkey_cycle = (int)arg;
 		DBG_KERNEL(KERN_INFO "Set cycle [%d]\n", *g_monkey_cycle);
 		break;
-		
+
 	case MONKEY_DEVICE_IOCTL_GET_CYCLE:
 		if( copy_to_user( (void *)arg, (void *)g_monkey_cycle , MONKEY_DEVICE_CYCLE_SIZE)) {
 			ret = -1;
 		}
 		DBG_KERNEL(KERN_INFO "Get cycle [%d]\n", *g_monkey_cycle);
 		break;
-		
+
 	case MONKEY_DEVICE_IOCTL_SET_LOG:
 		if( copy_from_user( (void *)g_monkey_log, (void *)arg , MONKEY_DEVICE_LOG_SIZE)) {
 			ret = -1;
 		}
 		D_DUMP_BUFFER("SetLog: ", strlen(g_monkey_log), g_monkey_log);
 		break;
-		
+
 	case MONKEY_DEVICE_IOCTL_GET_LOG:
 		if( copy_to_user( (void *)arg, (void *)g_monkey_log , MONKEY_DEVICE_LOG_SIZE)) {
 			ret = -1;
 		}
 		D_DUMP_BUFFER("GetLog: ", strlen(g_monkey_log), g_monkey_log);
 		break;
-		
+
 	case MONKEY_DEVICE_IOCTL_SET_FILE:
 		if( copy_from_user( (void *)g_monkey_file, (void *)arg , MONKEY_DEVICE_FILE_SIZE)) {
 			ret = -1;
 		}
 		D_DUMP_BUFFER("SetFileName: ", strlen(g_monkey_file), g_monkey_file);
 		break;
-		
+
 	case MONKEY_DEVICE_IOCTL_GET_FILE:
 		if( copy_to_user( (void *)arg, (void *)g_monkey_file , MONKEY_DEVICE_FILE_SIZE)) {
 			ret = -1;
 		}
 		D_DUMP_BUFFER("GetFileName: ", strlen(g_monkey_file), g_monkey_file);
 		break;
-		
+
 	default:
 		ret = -1;
 	}
-	
+
 	spin_unlock(&g_monkey_lock);
 
 	return ret;
@@ -163,14 +163,14 @@ static struct miscdevice monkey_miscdev = {
 static int __init monkey_device_init(void)
 {
 	int ret;
-	
+
 	ret = misc_register( &monkey_miscdev );
 
 	if( ret ) {
 		printk(KERN_INFO "Monkey Device Module Initialize Failed!!\n");
 		return ret;
 	}
-	
+
     spin_lock_init(&g_monkey_lock);
 
 	DBG_KERNEL(KERN_INFO "g_monkey_magic = 0x%p\n", g_monkey_magic);

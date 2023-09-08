@@ -1,3 +1,6 @@
+# This software is contributed or developed by KYOCERA Corporation.
+# (C) 2016 KYOCERA Corporation
+
 #
 # Makefile for the kernel character device drivers.
 #
@@ -71,5 +74,5 @@ obj-y	+= dnand_k_api.o
 obj-y	+= dnand_fs.o
 obj-y	+= dnand_drv.o
 obj-$(CONFIG_MSM_ADSPRPC)       += adsprpc.o
-obj-y += key_dm_driver.o
 obj-$(CONFIG_MSM_RDBG)       += rdbg.o
+obj-y += key_dm_driver.o

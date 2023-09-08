@@ -1,7 +1,6 @@
 /*
  * This software is contributed or developed by KYOCERA Corporation.
  * (C) 2013 KYOCERA Corporation
- * (C) 2014 KYOCERA Corporation
  *
  * drivers/video/msm/mdss/kc_hdmi.h
  *

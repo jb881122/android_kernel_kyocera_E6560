@@ -1,5 +1,4 @@
-/* Copyright (c) 2010-2011, 2013-2014 The Linux Foundation.
- * All rights reserved.
+/* Copyright (c) 2010-2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -28,6 +27,9 @@
 #include <linux/clk.h>
 #include <mach/msm_smd.h>
 #include <mach/qdsp6v2/apr_tal.h>
+
+/* setting modem information smem to uninit ram */
+extern void set_kcj_fixed_info_modem(void);
 
 static char *svc_names[APR_DEST_MAX][APR_CLIENT_MAX] = {
 	{
@@ -191,7 +193,8 @@ struct apr_svc_ch_dev *apr_tal_open(uint32_t svc, uint32_t dest,
 		apr_tal_close(&apr_svc_ch[dl][dest][svc]);
 		return NULL;
 	}
-               smd_disable_read_intr(apr_svc_ch[dl][dest][svc].ch);
+
+	smd_disable_read_intr(apr_svc_ch[dl][dest][svc].ch);
 
 	if (!apr_svc_ch[dl][dest][svc].dest_state) {
 		apr_svc_ch[dl][dest][svc].dest_state = 1;
@@ -235,6 +238,8 @@ static int apr_smd_probe(struct platform_device *pdev)
 		clnt = APR_CLIENT_VOICE;
 		apr_svc_ch[APR_DL_SMD][dest][clnt].dest_state = 1;
 		wake_up(&apr_svc_ch[APR_DL_SMD][dest][clnt].dest);
+                /* setting modem information smem to uninit ram */
+                set_kcj_fixed_info_modem();
 	} else if (pdev->id == APR_DEST_QDSP6) {
 		pr_info("apr_tal:Q6 Is Up\n");
 		dest = APR_DEST_QDSP6;
